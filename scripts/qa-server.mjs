@@ -6,6 +6,7 @@ import {eventDatabase} from '../tests/runtime-helpers.js';
 const root=resolve('work-before-simplify/qa-site');await mkdir(root,{recursive:true});
 const fixture=await eventDatabase(53);
 await fixture.db.exec(await readFile('supabase/migrations/20261023203457_dramatic_four_group_schedule.sql','utf8'));
+await fixture.db.exec(await readFile('supabase/migrations/20261023211459_guard_event_admin_actions.sql','utf8'));
 const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
 await fixture.cmd(0,'joining',id,{open:true});
 for(let i=1;i<=50;i++)await fixture.cmd(i,'join');

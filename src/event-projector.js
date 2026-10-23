@@ -1,8 +1,8 @@
-﻿import QRCode from 'qrcode';
+import QRCode from 'qrcode';
 import {supabaseConfig} from '../dist/supabase-config.js';
 import {esc} from './event-ui.js';
 import {boardSnapshot} from './event-contract.js';
-import {EliminationQueue,wings} from './event-theatre.js';
+import {EliminationQueue,crest} from './event-theatre.js';
 const screen=document.getElementById('screen');const token=location.hash.slice(1);
 const deaths=new EliminationQueue();
 let busy=false,revealing=false,current=null,qr='',joinUrl='',lastDraw='';
@@ -26,7 +26,7 @@ function draw(){
  if(fingerprint===lastDraw)return;lastDraw=fingerprint;
  let board=screen.querySelector('.projector-groups');
  if(!board){
-  screen.innerHTML=`<header class="projector-header"><div class="projector-title">${wings}<p class="eyebrow">2427 Biggin Hill Air Cadets${s.practice?' · Rehearsal':''}</p><h1>${esc(s.title)}</h1></div><a class="join-qr" href="${esc(joinUrl)}" aria-label="Open the event website"><img width="144" height="144" src="${qr}" alt="Scan to open Trust No One"></a></header><p id="board-connection" class="board-connection" role="status" hidden></p><section class="projector-groups" style="--group-count:${s.groups.length}" aria-label="Player groups"></section>`;
+  screen.innerHTML=`<header class="projector-header"><div class="projector-title">${crest}<p class="eyebrow">2427 Biggin Hill Air Cadets${s.practice?' · Rehearsal':''}</p><h1>${esc(s.title)}</h1></div><a class="join-qr" href="${esc(joinUrl)}" aria-label="Open the event website"><img width="144" height="144" src="${qr}" alt="Scan to open Trust No One"></a></header><p id="board-connection" class="board-connection" role="status" hidden></p><section class="projector-groups" style="--group-count:${s.groups.length}" aria-label="Player groups"></section>`;
   board=screen.querySelector('.projector-groups');
  }
  screen.querySelector('h1').textContent=s.title;

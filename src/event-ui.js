@@ -1,11 +1,13 @@
 export const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const btn=(cmd,label,args={},extra='')=>`<button type="button" class="gold" data-cmd="${esc(cmd)}" data-args="${esc(JSON.stringify(args))}" ${extra}>${esc(label)}</button>`;
+import {commandHelp} from './event-help.js';
+export const withNote=(button,label,note)=>note?`<span class="control-with-note" data-note="${esc(note)}">${button}<button class="control-info" type="button" aria-label="About ${esc(label)}" aria-controls="floating-control-note" aria-expanded="false">i</button></span>`:button;
+export const btn=(cmd,label,args={},extra='',note=commandHelp(cmd,args))=>withNote(`<button type="button" class="gold" data-cmd="${esc(cmd)}" data-args="${esc(JSON.stringify(args))}" ${extra}>${esc(label)}</button>`,label,note);
 export const field=(name,label,type='text',value='',extra='')=>`<label class="field">${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 export const text=(name,label,value='',max=1000)=>`<label class="field">${esc(label)}<textarea name="${esc(name)}" maxlength="${max}">${esc(value)}</textarea></label>`;
 export const check=(name,label,on=false)=>`<label class="check"><input name="${name}" type="checkbox" ${on?'checked':''}>${esc(label)}</label>`;
 export const options=(items,value)=>items.map(i=>`<option value="${esc(i.id)}" ${String(i.id)===String(value)?'selected':''}>${esc(i.name)}</option>`).join('');
 export const select=(name,label,items,value,extra='')=>`<label class="field">${esc(label)}<select name="${name}" ${extra}>${options(items,value)}</select></label>`;
-export const form=(cmd,body,label='Save',args={})=>`<form data-form="${cmd}" data-args="${esc(JSON.stringify(args))}" class="stack">${body}<button class="gold" type="submit">${esc(label)}</button></form>`;
+export const form=(cmd,body,label='Save',args={})=>`<form data-form="${cmd}" data-args="${esc(JSON.stringify(args))}" class="stack">${body}${withNote(`<button class="gold" type="submit">${esc(label)}</button>`,label,commandHelp(cmd,args))}</form>`;
 export const panel=(title,body,cls='')=>`<section class="panel ${cls}"><div class="panel-head"><h2>${esc(title)}</h2></div><div class="panel-body">${body}</div></section>`;
 export const timeLeft=(group,serverNow=Date.now())=>group.paused?Math.max(0,group.remaining):Math.max(0,Math.ceil((Date.parse(group.deadline)-serverNow)/1000));
 export const clock=n=>`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
