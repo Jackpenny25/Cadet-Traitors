@@ -11,10 +11,11 @@ test('versioned deployment migrations install an empty, protected runtime on a f
    create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id));
    create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
    create function auth.jwt() returns jsonb language sql stable as $$select '{}'::jsonb$$;`);
-  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,2);
+  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,6);
   const runtime=files.find(f=>f.endsWith('_single_event_runtime.sql'));
-  const strip=sql=>sql.replace(/^begin;\s*$/gim,'').replace(/^commit;\s*$/gim,'');
-  assert.equal(await readFile('supabase/migrations/'+runtime,'utf8'),strip(await readFile('supabase/event-runtime.sql','utf8')),'Packaged runtime must match tested source');
+  const normalize=sql=>sql.replace(/\r\n/g,'\n');
+  const strip=sql=>normalize(sql).replace(/^begin;\s*$/gim,'').replace(/^commit;\s*$/gim,'');
+  assert.equal(normalize(await readFile('supabase/migrations/'+runtime,'utf8')),strip(await readFile('supabase/event-runtime.sql','utf8')),'Packaged runtime must match tested source');
   for(const file of files)await db.exec(await readFile('supabase/migrations/'+file,'utf8'));
   const version=(await db.query('select public.tno_connection_check() as data')).rows[0].data;
   assert.equal(version.schema_version,4);
