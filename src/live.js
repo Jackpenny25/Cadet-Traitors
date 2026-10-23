@@ -1,6 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {supabaseConfig} from '../dist/supabase-config.js';
 import {MISSIONS} from '../dist/engine.js';
+import {TurnstileGate,createProtectedSession} from './bot-protection.js';
 
 const client=createClient(supabaseConfig.url,supabaseConfig.publishableKey,{
  global:{fetch:(url,options={})=>fetch(url,{...options,signal:options.signal?AbortSignal.any([options.signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)})},
@@ -9,6 +10,10 @@ const app=document.getElementById('app');
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let session=null, lobby=null, game=null, selected=null, busy=false, notice='', lastSync=0;
 let showRole=false;
+let pendingCommand=null, authEpoch=0;
+const gate=new TurnstileGate({siteKey:supabaseConfig.turnstileSiteKey,onChange:()=>{
+ document.querySelectorAll('form[data-form="login"] button,form[data-form="signup"] button').forEach(b=>b.disabled=busy||(!session&&!gate.token));
+}});
 const button=(cmd,label,args={})=>`<button class="gold" data-cmd="${esc(cmd)}" data-args="${esc(JSON.stringify(args))}">${esc(label)}</button>`;
 const input=(name,label,type='text',extra='')=>`<label class="field">${label}<input name="${name}" type="${type}" required ${extra}></label>`;
 const form=(cmd,body,label)=>`<form data-form="${cmd}" class="stack">${body}<button class="gold" type="submit">${label}</button></form>`;
@@ -33,6 +38,7 @@ function gamePage(){
  }
  body+=`<div class="card-grid section-gap">${game.groups.map(g=>panel(esc(g.name),`<p>${g.score} mission points${g.winner?' · '+esc(g.winner)+' win':''}</p><div class="stack">${game.players.filter(p=>p.group===g.id).map(p=>`<div class="live-player ${p.status==='Active'?'':'out'}"><span>${esc(p.name)}</span><span>${esc(p.status)}${p.role?' · '+esc(p.role):''}</span></div>`).join('')}</div>`)).join('')}</div>`;
  if(game.host)body+=`<p><a href="projector.html#${esc(game.display_token)}" target="_blank" rel="noopener">Open player board</a> · Anyone with that board link can see names and published results.</p>`;
+ if(game.host)body+=button('rotate_board','Replace player board link');
  if(game.host&&!game.ended){body+=panel('Host controls',`<div class="btns">${game.stage==='Joining'?button('assign','Close joining and assign roles'):['Mission','Round table','Night'].filter(s=>s!==game.stage).map(s=>button('stage','Move to '+s,{stage:s})).join('')}${game.stage==='Round table'?button(game.ballot_open?'close_vote':'open_vote',game.ballot_open?'Close voting':'Open voting'):''}${button('finish','End game and reveal winners')}</div>`);
  body+=`<div class="card-grid section-gap">${panel('Mission points',form('score',`<label class="field">Group<select name="group">${options(game.groups)}</select></label>`+input('delta','Points to add or subtract','number','min="-1000" max="1000"')+input('reason','Reason','text','maxlength="200"'),'Save points'))}${panel('Public announcement',form('announce','<label class="field">Message<textarea name="text" maxlength="1000"></textarea></label>','Publish announcement'))}${panel('Private Traitor objective',form('objective','<label class="field">Objective for all active Traitors<textarea name="text" maxlength="1000"></textarea></label>','Send objective'))}</div>`;
  if(game.stage==='Night')body+=panel('Private target choices',game.proposals.map(p=>`<p>${esc(playerName(p.actor))} chose ${esc(playerName(p.target))} ${button('confirm_murder','Confirm outcome privately',{target:p.target})}</p>`).join('')||'<p>No choices submitted yet.</p>');
@@ -44,15 +50,23 @@ function gamePage(){
  return body;
 }
 function render(){
+ gate.clear();
  const focused=document.activeElement; const field=focused?.name; const frm=focused?.closest('form')?.dataset.form;
  // Polls never redraw while a form is being edited.
  app.innerHTML=`<header class="welcome-nav"><h1>Trust No One</h1><div class="btns">${lobby?button('logout','Sign out'):''}</div></header><main class="workspace live-workspace"><p id="connection" role="status">${busy?'Saving…':!lobby?'Sign in with your name and PIN to get started.':lastSync?'Last synced '+new Date(lastSync).toLocaleTimeString():'Connecting…'}</p><p id="notice" role="alert">${esc(notice)}</p>${!lobby?authPage():game?gamePage():lobbyPage()}</main>`;
  document.querySelectorAll('button').forEach(b=>b.disabled=busy);
+ if(!lobby&&!session&&supabaseConfig.turnstileEnabled){
+  const box=document.createElement('section');box.id='bot-check';
+  box.innerHTML='<div class="turnstile-widget"></div><p role="status">Preparing security check…</p>';
+  document.querySelector('.card-grid')?.before(box);void gate.mount(box);
+ }
  if(field&&frm)document.querySelector(`form[data-form="${frm}"] [name="${field}"]`)?.focus();
 }
-async function rpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw new Error(error.code==='PGRST202'?'The connected database upgrade is missing. Ask the host to run 002-connected.sql.':error.message);return data;}
+async function rpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw new Error(error.code==='PGRST202'?'The database needs its latest security update. Please contact the organiser.':error.message);if(data?.error)throw new Error(data.error);return data;}
 async function refresh(redraw=true){
- const data=await rpc('tno_snapshot',{eid:selected});
+ const epoch=authEpoch,eventId=selected;
+ const data=await rpc('tno_snapshot',{eid:eventId});
+ if(epoch!==authEpoch||eventId!==selected)return;
  if(selected)game=data;else{lobby=data;game=null;}lastSync=Date.now();
  if(redraw)render();
 }
@@ -64,23 +78,27 @@ async function perform(cmd,args={}){
  try{
   if(cmd==='login'||cmd==='signup'){
    if(cmd==='signup'&&args.pin!==args.repeat)throw new Error('The PINs do not match.');
-   if(!session){const {data,error}=await client.auth.signInAnonymously();if(error)throw new Error('Could not start a session. Check Anonymous Sign-Ins is enabled in Supabase. '+error.message);session=data.session;}
+   if(!session)session=await createProtectedSession(client,gate,{enabled:supabaseConfig.turnstileEnabled});
    const result=await rpc('tno_login',{display_name:args.name,pin:args.pin,register:cmd==='signup'});
    if(result.error)throw new Error(result.error);
    selected=null;game=null;showRole=false;await refresh(false);
-  }else if(cmd==='logout'){await rpc('tno_logout',{});const {error}=await client.auth.signOut();if(error)throw error;session=null;game=null;lobby=null;selected=null;showRole=false;
+  }else if(cmd==='logout'){await rpc('tno_logout',{});authEpoch++;game=null;lobby=null;selected=null;showRole=false;pendingCommand=null;const {error}=await client.auth.signOut();if(error)throw error;session=null;
   }else if(cmd==='select'){selected=args.id;showRole=false;await refresh(false);
   }else if(cmd==='back'){selected=null;game=null;showRole=false;await refresh(false);
   }else if(cmd==='show-role'){showRole=!showRole;
   }else{
-   const data=await rpc('tno_command',{cmd,eid:selected,args});selected=data.id;await refresh(false);notice='Saved to the game.';
+   const eid=['create','join'].includes(cmd)?null:selected;
+   const fingerprint=JSON.stringify([cmd,eid,args]);
+   if(pendingCommand?.fingerprint!==fingerprint)pendingCommand={fingerprint,id:crypto.randomUUID()};
+   const data=await rpc('tno_command',{cmd,eid,args:{...args,request_id:pendingCommand.id}});selected=data.id;await refresh(false);pendingCommand=null;notice='Saved to the game.';
   }
  }catch(e){notice=e.message||'Could not save. Check your connection and try again.';}
  finally{busy=false;render();}
 }
 document.addEventListener('submit',e=>{if(!e.target.dataset.form)return;e.preventDefault();perform(e.target.dataset.form,Object.fromEntries(new FormData(e.target)));});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-cmd]');if(b)perform(b.dataset.cmd,JSON.parse(b.dataset.args));});
-client.auth.onAuthStateChange((event,s)=>{session=s;if(event==='SIGNED_OUT'){selected=null;game=null;lobby=null;showRole=false;render();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&showRole){showRole=false;render();}});
+client.auth.onAuthStateChange((event,s)=>{session=s;if(event==='SIGNED_OUT'){authEpoch++;selected=null;game=null;lobby=null;showRole=false;pendingCommand=null;render();}});
 try{const {data,error}=await client.auth.getSession();if(error)throw error;session=data.session;if(session)await refresh(false);}catch(e){if(!e.message.includes('Sign in first'))notice=e.message;}render();
 setInterval(async()=>{
  if(!session||!lobby||busy||document.hidden)return;

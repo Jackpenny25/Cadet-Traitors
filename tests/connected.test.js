@@ -9,20 +9,24 @@ test('connected lifecycle, permissions, private roles and persistence',async()=>
  try {
  await db.exec(`create role anon; create role authenticated; create schema auth;
  create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
+ create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id));
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.uid',true),'')::uuid$$;
+ create function auth.jwt() returns jsonb language sql stable as $$select jsonb_build_object('session_id',auth.uid())$$;
  grant usage on schema public,auth to authenticated,anon;
  grant execute on function auth.uid() to authenticated,anon;`);
  await db.exec(await readFile('supabase/001-foundation.sql','utf8'));
  await db.exec(await readFile('supabase/002-connected.sql','utf8'));
+ await db.exec(await readFile('supabase/005-security.sql','utf8'));
  const ids=Array.from({length:8},()=>crypto.randomUUID());
  for(let i=0;i<ids.length;i++)await db.query('insert into auth.users values($1,$2,now())',[ids[i],`user${i}@example.test`]);
+ for(const id of ids)await db.query('insert into auth.sessions values($1,$1)',[id]);
  for(let i=0;i<6;i++){
   await db.query("insert into private.accounts(id,name,name_key,pin_hash) values($1,$2,$2,extensions.crypt('1234',extensions.gen_salt('bf',4)))",[ids[i],'user'+i]);
-  await db.query('insert into private.sessions(auth_user,account_id) values($1,$1)',[ids[i]]);
+  await db.query('insert into private.sessions(auth_user,account_id,auth_session) values($1,$1,$1)',[ids[i]]);
  }
  await db.query('insert into private.hosts values($1)',[ids[0]]);
  async function as(i){await db.exec('reset role');await db.query("select set_config('request.uid',$1,false)",[i===null?'':ids[i]]);await db.exec(`set role ${i===null?'anon':'authenticated'}`);}
- async function cmd(c,eid=null,args={}){return (await db.query('select public.tno_command($1,$2,$3) as data',[c,eid,JSON.stringify(args)])).rows[0].data;}
+ async function cmd(c,eid=null,args={}){const data=(await db.query('select public.tno_command($1,$2,$3) as data',[c,eid,JSON.stringify({request_id:crypto.randomUUID(),...args})])).rows[0].data;if(data.error)throw new Error(data.error);return data;}
  async function snap(id=null){return (await db.query('select public.tno_snapshot($1) as data',[id])).rows[0].data;}
  await as(null);await assert.rejects(()=>snap(),/permission denied/);
  await as(1);await assert.rejects(()=>cmd('create',null,{title:'Forbidden',groups:1,capacity:5,traitors:1}),/host access/);
@@ -70,7 +74,7 @@ test('connected lifecycle, permissions, private roles and persistence',async()=>
  await as(indexFor(secondTraitor));await cmd('propose',second.id,{target:secondFaithful[0].id});
  await as(0);await cmd('confirm_murder',second.id,{target:secondFaithful[0].id});
  s=await snap(second.id);const murder=s.outcomes.find(o=>o.kind==='Murdered');
- await assert.rejects(()=>cmd('confirm_murder',second.id,{target:secondFaithful[0].id}),/unique constraint/);
+ await assert.rejects(()=>cmd('confirm_murder',second.id,{target:secondFaithful[0].id}),/already been recorded/);
  await as(null);board=(await db.query('select public.tno_board($1) as data',[boardToken])).rows[0].data;
  assert.ok(board.players.every(p=>p.status==='Active'));
  await as(0);await cmd('publish',second.id,{outcome:murder.id});
@@ -82,6 +86,20 @@ test('connected lifecycle, permissions, private roles and persistence',async()=>
  s=await snap(second.id);const tie=s.outcomes.find(o=>o.kind==='Banished');assert.equal(tie.target,secondFaithful[1].id);
  await cmd('publish',second.id,{outcome:tie.id});await cmd('finish',second.id);
  assert.equal((await snap(second.id)).groups[0].winner,'Traitors');
+ // A leaked board link can be revoked without changing players or their accounts.
+ await cmd('rotate_board',second.id);
+ await as(null);await assert.rejects(()=>db.query('select public.tno_board($1)',[boardToken]),/not found/);
+ await as(1);await assert.rejects(()=>cmd('rotate_board',second.id),/Only this game/);
+ await assert.rejects(()=>db.query('select private.game_command($1,$2,$3)',['assign',id,'{}']),/permission denied/);
+ await assert.rejects(()=>db.query('select private.login_core($1,$2,$3)',['user0','1234',false]),/permission denied/);
+ for(let i=0;i<8;i++)await assert.rejects(()=>cmd('join',null,{code:'INVALID',name:'Test'}),/Game not found/);
+ await assert.rejects(()=>cmd('join',null,{code:secondCode,name:'Test'}),/Too many requests/);
+ await as(0);const third=await cmd('create',null,{title:'Retry test',groups:1,capacity:4,traitors:1});
+ const thirdGame=await snap(third.id);const request_id=crypto.randomUUID();
+ const scoring={request_id,group:thirdGame.groups[0].id,delta:25,reason:'Physical mission'};
+ await cmd('score',third.id,scoring);await cmd('score',third.id,scoring);
+ assert.equal((await snap(third.id)).groups[0].score,25);
+ await assert.rejects(()=>cmd('score',third.id,{...scoring,delta:100}),/cannot be reused/);
  await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from public.players')).rows[0].n,9);
  // Name/PIN registration, recovery on a fresh Auth session, durable rate limits.
  await as(6);
@@ -105,6 +123,11 @@ test('connected lifecycle, permissions, private roles and persistence',async()=>
  await as(7);await assert.rejects(()=>snap(),/Sign in first/);
  assert.equal((await login('New Player','0271')).name,'New Player');
  assert.equal((await snap()).can_host,true);
+ // A revoked Supabase Auth session cannot continue using an application binding.
+ await db.exec('reset role');await db.query('delete from auth.sessions where user_id=$1',[ids[7]]);
+ await as(7);await assert.rejects(()=>snap(),/Sign in first/);
+ assert.match((await login('New Player','0271')).error,/expired/);
+ await db.exec('reset role');await db.query('insert into auth.sessions values($1,$1)',[ids[7]]);
  await db.exec('reset role');
  await db.exec("update private.sessions set expires_at=now()-interval '1 second'");
  await as(7);await assert.rejects(()=>snap(),/Sign in first/);

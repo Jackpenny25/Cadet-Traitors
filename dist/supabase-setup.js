@@ -21,8 +21,8 @@ button.addEventListener('click', async () => {
       throw new Error(messages[response.status] || `Supabase returned HTTP ${response.status}. Check that the project is active and the SQL setup succeeded.`);
     }
     const data = await response.json();
-    if (data.app !== 'trust-no-one' || ![1,2].includes(data.schema_version)) throw new Error('The project responded, but its database setup does not match this website.');
-    result.textContent = data.schema_version === 2 ? 'Connected! The connected game upgrade is installed. Open Trust No One to sign in or create an account.' : 'Connected to the foundation. Run 002-connected.sql to enable accounts and shared games.';
+    if (data.app !== 'trust-no-one' || ![1,2,3].includes(data.schema_version)) throw new Error('The project responded, but its database setup does not match this website.');
+    result.textContent = data.schema_version === 3 ? 'Connected! The database security update is installed.' : data.schema_version === 2 ? 'Connected. Run 005-security.sql to install the latest protections.' : 'Connected to the foundation. Run 002-connected.sql, then 005-security.sql.';
   } catch (error) {
     result.textContent = error.name === 'TimeoutError' ? 'The request timed out. Check your connection and that the Supabase project is active.' :
       error instanceof TypeError ? 'Could not reach Supabase. Check your internet connection and project URL.' : error.message;

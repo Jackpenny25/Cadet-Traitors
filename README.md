@@ -5,9 +5,9 @@ A connected group game on GitHub Pages with name and four-digit PIN accounts, ba
 ## Activate this version
 
 1. Keep the existing foundation (supabase/001-foundation.sql). Do not run it again.
-2. Run supabase/002-connected.sql once in Supabase SQL Editor. It adds accounts, private game storage and server commands without deleting existing records.
+2. Run supabase/002-connected.sql once in Supabase SQL Editor, then run supabase/005-security.sql once. If 002 is already installed, run only 005. Existing accounts and games are preserved; existing sessions must sign in again.
 3. In Supabase Authentication settings, enable Anonymous Sign-Ins. No email provider, SMTP or email redirect is needed. These anonymous sessions are just the transport: a successful server-side name/PIN login is also required to access games.
-4. Check Authentication rate limits for anonymous sign-ins. Supabase documents a default limit of 30 per hour per IP. For around 50 devices on squadron Wi-Fi, configure an appropriate higher limit before the event, for example 100 per hour, and rehearse on that network. Do not enable a CAPTCHA requirement without also adding its verification widget and passing the token to signInAnonymously.
+4. Check Authentication rate limits for anonymous sign-ins. Supabase documents a default limit of 30 per hour per IP. For around 50 devices on squadron Wi-Fi, configure an appropriate higher limit before the event, for example 100 per hour, and rehearse on that network. CAPTCHA stays disabled for this build. See supabase/SECURITY.md for limits, activation steps and optional protection.
 5. Commit and push all updated files to main. Keep GitHub Pages on main, / (root).
 6. Open the new website, choose Create an account, and enter your name and a four-digit PIN twice.
 7. Replace the name placeholder in supabase/003-grant-host.sql with your registered account name. Run that script in SQL Editor, then refresh the website. Create game now appears.
