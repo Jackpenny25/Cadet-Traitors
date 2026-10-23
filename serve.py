@@ -1,4 +1,4 @@
-"""Local demo server with explicit JavaScript types and no stale browser cache."""
+"""Local website server with explicit JavaScript types and no stale browser cache."""
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     handler = partial(DemoHandler, directory=str(Path(__file__).resolve().parent / "dist"))
     with ThreadingHTTPServer(("127.0.0.1", 4173), handler) as server:
         print("Open http://127.0.0.1:4173", flush=True)
-        print("Keep this terminal open. Ctrl+C stops the demo.", flush=True)
+        print("Keep this terminal open. Ctrl+C stops the website.", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

@@ -1,10 +1,18 @@
 {
-  "name": "trust-no-one-2427-demo",
+  "name": "cadet-traitors",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/engine.test.js tests/identity.test.js",
+    "test": "node --test tests/*.test.js",
+    "build": "esbuild src/live.js --bundle --format=esm --minify --outfile=dist/app.js --target=es2022",
     "start": "python serve.py"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "esbuild": "0.28.2"
   }
 }
