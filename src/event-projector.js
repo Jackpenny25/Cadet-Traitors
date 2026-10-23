@@ -30,6 +30,7 @@ function draw(){
   board=screen.querySelector('.projector-groups');
  }
  screen.querySelector('h1').textContent=s.title;
+ screen.style.setProperty('--roster-rows',Math.max(1,...s.groups.map(g=>s.players.filter(p=>p.group===g.id).length)));
  board.style.setProperty('--group-count',s.groups.length);
  board.innerHTML=s.groups.map((g,i)=>`<article class="projector-group flight-${i}"><header><span class="flight-index" aria-hidden="true">0${i+1}</span><h2>${esc(g.name)}</h2></header><div class="board-names">${s.players.filter(p=>p.group===g.id).sort((a,b)=>a.number-b.number).map(p=>{
   const dead=deaths.presented.has(p.id);return `<div data-player="${esc(p.id)}" class="name-tile ${dead?'eliminated':''} ${p.status==='Withdrawn'?'withdrawn':''}"><span class="tile-number">${esc(String(p.number).padStart(2,'0'))}</span><span class="tile-name">${esc(p.name)}</span>${dead?'<span class="name-cross" aria-hidden="true"><i></i><i></i></span>':''}<span class="sr-only">${dead?esc(p.status):p.status==='Withdrawn'?'Withdrawn':'Active'}</span></div>`;
