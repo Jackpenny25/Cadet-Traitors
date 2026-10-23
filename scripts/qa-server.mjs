@@ -4,13 +4,14 @@ import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,extname} from 'node:path';
 import {eventDatabase} from '../tests/runtime-helpers.js';
 const root=resolve('work-before-simplify/qa-site');await mkdir(root,{recursive:true});
-const fixture=await eventDatabase(9);
-const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:2,size:5,traitors:1});
+const fixture=await eventDatabase(53);
+await fixture.db.exec(await readFile('supabase/migrations/20261023203457_dramatic_four_group_schedule.sql','utf8'));
+const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
 await fixture.cmd(0,'joining',id,{open:true});
-for(let i=1;i<=6;i++)await fixture.cmd(i,'join');
-await fixture.cmd(0,'assign_staff',id,{name:'Person 7',groups:[(await fixture.snap(0,id)).groups[0].id]});
+for(let i=1;i<=50;i++)await fixture.cmd(i,'join');
+await fixture.cmd(0,'assign_staff',id,{name:'Person 51',groups:[(await fixture.snap(0,id)).groups[0].id]});
 await fixture.cmd(0,'prepare_roles',id);await fixture.cmd(0,'release_roles',id);await fixture.cmd(0,'mission',id,{mission:0});
-const practice=await fixture.cmd(0,'create',null,{title:'Separate NCO rehearsal',practice:true,groups:2,size:5,traitors:1});
+const practice=await fixture.cmd(0,'create',null,{title:'Separate NCO rehearsal',practice:true,groups:4,size:13,traitors:2});
 const tokens=new Map();
 const session=(index)=>{
  const uid=fixture.users[index];const now=Math.floor(Date.now()/1000);const token=[{alg:'HS256',typ:'JWT'},{sub:uid,aud:'authenticated',role:'authenticated',session_id:uid,iat:now,exp:now+3600},'LOCAL_QA_ONLY'].map((v,i)=>i===2?v:Buffer.from(JSON.stringify(v)).toString('base64url')).join('.');
@@ -48,4 +49,4 @@ const handler=async(req,res)=>{
 };
 for(const port of [4175,4176])createServer(handler).listen(port,'127.0.0.1');
 console.log('QA ONLY: http://127.0.0.1:4175 (host) and :4176 (player), independent browser storage.');
-console.log('Fixture logins: Host / 0123; Person 1..7 / 0123. Rehearsal '+practice.id+'. No real Supabase accounts used.');
+console.log('Fixture logins: Host / 0123; Person 1..52 / 0123. Rehearsal '+practice.id+'. No real Supabase accounts used.');
