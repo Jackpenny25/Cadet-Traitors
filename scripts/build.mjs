@@ -9,10 +9,10 @@ const config=qa?`export const supabaseConfig={url:globalThis.location.origin,pub
 const dist=qa?'work-before-simplify/qa-site':process.env.TNO_OUTPUT||'dist';await mkdir(dist,{recursive:true});
 const configPlugin={name:'browser-config',setup(builder){builder.onResolve({filter:/supabase-config\.js$/},()=>({path:'configuration',namespace:'tno-config'}));builder.onLoad({filter:/.*/,namespace:'tno-config'},()=>({contents:config,loader:'js'}));}};
 await build({entryPoints:{app:'src/event-app.js',projector:'src/event-projector.js'},outdir:dist,bundle:true,format:'esm',minify:true,target:'es2022',plugins:[configPlugin],legalComments:'none'});
-// Auth-check page uses this module directly too. Only browser-safe values go here.
+// Only browser-safe values go here.
 await writeFile(dist+'/supabase-config.js',config);
-if(dist!=='dist')for(const name of ['index.html','projector.html','supabase-setup.html','supabase-setup.js','styles.css','live.css','event.css','theatre.css','guide.html','favicon.svg'])await copyFile('dist/'+name,dist+'/'+name);
-if(configuredUrl)for(const name of ['index.html','projector.html','supabase-setup.html','guide.html']){const path=dist+'/'+name;await writeFile(path,(await readFile(path,'utf8')).replace(/https:\/\/[a-z0-9]+\.supabase\.co/g,configuredUrl.origin));}
+if(dist!=='dist')for(const name of ['index.html','projector.html','styles.css','live.css','event.css','theatre.css','favicon.svg'])await copyFile('dist/'+name,dist+'/'+name);
+if(configuredUrl)for(const name of ['index.html','projector.html']){const path=dist+'/'+name;await writeFile(path,(await readFile(path,'utf8')).replace(/https:\/\/[a-z0-9]+\.supabase\.co/g,configuredUrl.origin));}
 // Keep old /dist links working when GitHub Actions deploys dist as the site root.
 await mkdir(dist+'/dist',{recursive:true});
 await writeFile(dist+'/compat-redirect.js',`const name=location.pathname.endsWith('/projector.html')?'projector.html':'index.html';location.replace('../'+name+location.search+location.hash);`);
