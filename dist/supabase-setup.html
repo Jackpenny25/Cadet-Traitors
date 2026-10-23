@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Supabase connection check · Trust No One</title>
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+  <main class="workspace docs" style="max-width:750px;margin:auto">
+    <h1>Supabase connection check</h1>
+    <p>This checks the project connection and database foundation. It does not create accounts or change game data.</p>
+    <p>First run <code>supabase/001-foundation.sql</code> in your project's SQL Editor.</p>
+    <button id="check" class="gold">Check connection</button>
+    <p id="result" role="status" aria-live="polite">Ready to check.</p>
+    <p>The game still uses browser storage. Multiplayer controls and sign-in are the next stage.</p>
+    <p><a href="index.html">Back to the demo</a></p>
+  </main>
+  <script type="module" src="supabase-setup.js"></script>
+</body>
+</html>
