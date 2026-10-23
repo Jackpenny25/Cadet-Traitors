@@ -1,0 +1,10 @@
+{
+  "name": "trust-no-one-2427-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/engine.test.js tests/identity.test.js",
+    "start": "python serve.py"
+  }
+}
