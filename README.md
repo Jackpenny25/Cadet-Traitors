@@ -4,6 +4,16 @@ A simple local rehearsal for 2427 (Biggin Hill). Independent game concept; not a
 
 ## Launch
 
+### GitHub Pages
+
+In the repository's Settings > Pages, keep Source set to Deploy from a branch,
+with `main` and `/ (root)` selected. The root `index.html` forwards visitors to
+the website in `dist/`; `.nojekyll` makes GitHub serve the files directly.
+Commit and push these files to publish the fix. Publication can take up to
+10 minutes. The public address is https://jackpenny25.github.io/Cadet-Traitors/.
+
+### Local preview
+
 Run `python serve.py` from this folder and visit http://127.0.0.1:4173. No installation or build step. The launcher sets JavaScript MIME types explicitly and disables caching. You can also use another static HTTP server for dist/.
 
 ## What changed
