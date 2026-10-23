@@ -4,7 +4,7 @@ Name and four-digit PIN login remains unchanged. No CAPTCHA widget or Cloudflare
 
 ## Apply the update
 
-Run `005-security.sql` once in Supabase SQL Editor after `002-connected.sql`.
+Follow docs/DEPLOYMENT.md for the installed version. The single-event runtime migration is required after the earlier security update. Do not rerun an already installed migration.
 Do not rerun the earlier scripts if they are already installed. This update
 preserves accounts and games, but requires existing app sessions to sign in again.
 Publish the updated website files together with this SQL update. Old clients
@@ -14,7 +14,7 @@ The update adds:
 
 1. Binding to a live Supabase Auth session, so deleting/revoking that session
    also stops its application access, even with an unexpired access token.
-2. Ten join attempts per minute per app account, including unsuccessful codes.
+2. Ten join attempts per minute per app account, including unsuccessful requests.
    Other commands allow sixty attempts per minute per account across devices.
 3. Server-side request receipts to prevent retrying a committed request from
    applying it twice. Conflicting reuse of a request identifier is rejected.

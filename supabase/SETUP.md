@@ -1,2 +1,5 @@
-Run 002-connected.sql after the existing foundation. Enable Supabase Anonymous Sign-Ins. Create a name and four-digit PIN account on the updated website, then use 003-grant-host.sql to grant your name host access. Follow the root README for the full setup. Accounts are in private.accounts; public.players contains game registrations only.
-After 002 is installed, apply 005-security.sql once and publish the updated website. See SECURITY.md. CAPTCHA remains off by default.
+# Database setup
+
+Follow docs/DEPLOYMENT.md in the repository. Identify the installed version first and apply only the missing upgrades. The single-event runtime is the second file in supabase/migrations.
+
+Name and four-digit PIN login is retained, joining codes are removed, and the projector QR opens the website. No migration seeds players.

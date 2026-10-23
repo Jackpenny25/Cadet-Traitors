@@ -1,0 +1,11 @@
+import {readFile,writeFile,readdir} from 'node:fs/promises';
+const files=await readdir('supabase/migrations');
+const baseline=files.find(n=>n.endsWith('_connected_event_baseline.sql'));
+const runtime=files.find(n=>n.endsWith('_single_event_runtime.sql'));
+if(!baseline||!runtime)throw new Error('Create migration files with supabase migration new before packaging.');
+const strip=sql=>sql.replace(/^begin;\s*$/gim,'').replace(/^commit;\s*$/gim,'');
+let sql='-- Fresh-project baseline. For an existing project follow docs/DEPLOYMENT.md.\n';
+for(const name of ['001-foundation.sql','002-connected.sql','005-security.sql'])sql+='\n-- '+name+'\n'+strip(await readFile('supabase/'+name,'utf8'));
+await writeFile('supabase/migrations/'+baseline,sql);
+await writeFile('supabase/migrations/'+runtime,strip(await readFile('supabase/event-runtime.sql','utf8')));
+console.log('Packaged '+baseline+' and '+runtime);

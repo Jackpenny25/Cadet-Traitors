@@ -1,0 +1,1 @@
+const name=location.pathname.endsWith('/projector.html')?'projector.html':'index.html';location.replace('../'+name+location.search+location.hash);

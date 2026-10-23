@@ -1,3 +1,7 @@
 /work-before-simplify/
 /node_modules/
 /account-preview.png
+/.env
+/.env.local
+/supabase/.temp/
+/supabase/.branches/

@@ -1,2 +1,3 @@
 # Generated SDK bundle includes significant whitespace inside string literals.
 dist/app.js -whitespace
+dist/projector.js -whitespace
