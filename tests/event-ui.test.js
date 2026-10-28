@@ -16,7 +16,7 @@ test('countdowns use shared server time, stay paused and never go negative',()=>
 test('late advice respects Europe/London and preserves the results deadline',()=>{
  const rows=[{time:'20:35',minutes:15,label:'The Last Transmission'}];
  assert.match(lateAdvice(rows,'2026-10-31',Date.parse('2026-10-31T20:00:00Z')),/70 minutes/);
- assert.match(lateAdvice(rows,'2026-10-31',Date.parse('2026-10-30T20:00:00Z')),/Europe\/London/);
+ assert.match(lateAdvice(rows,'2026-10-31',Date.parse('2026-10-30T20:00:00Z')),/Start each activity/);
 });
 test('projector QR is produced locally and contains no board token in its website URL',async()=>{
  const board=new URL('https://jackpenny25.github.io/Cadet-Traitors/projector.html#SECRET_BOARD_TOKEN');

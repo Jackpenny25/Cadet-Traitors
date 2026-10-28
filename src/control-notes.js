@@ -15,10 +15,10 @@ export function installControlNotes(doc=document){
   note.hidden=false;anchor.querySelector('[data-cmd],button[type="submit"]')?.setAttribute('aria-describedby',note.id);anchor.querySelector('.control-info')?.setAttribute('aria-expanded','true');position();
  };
  const later=()=>{clearTimeout(closeTimer);closeTimer=setTimeout(()=>{if(!pinned&&!anchor?.contains(doc.activeElement))hide();},180);};
- doc.addEventListener('pointerover',e=>{const el=e.target.closest('[data-note]');if(el&&!el.contains(e.relatedTarget))show(el);});
- doc.addEventListener('pointerout',e=>{const el=e.target.closest('[data-note]');if(el&&!el.contains(e.relatedTarget)&&!note.contains(e.relatedTarget))later();});
+ doc.addEventListener('pointerover',e=>{const el=e.target.closest('.control-info')?.closest('[data-note]');if(el&&!el.querySelector('.control-info').contains(e.relatedTarget))show(el);});
+ doc.addEventListener('pointerout',e=>{const el=e.target.closest('.control-info')?.closest('[data-note]');if(el&&!el.querySelector('.control-info').contains(e.relatedTarget)&&!note.contains(e.relatedTarget))later();});
  note.addEventListener('pointerenter',()=>clearTimeout(closeTimer));note.addEventListener('pointerleave',later);
- doc.addEventListener('focusin',e=>{const el=e.target.closest('[data-note]');if(el)show(el);});
+ doc.addEventListener('focusin',e=>{const el=e.target.closest('.control-info')?.closest('[data-note]');if(el)show(el);});
  doc.addEventListener('focusout',e=>{if(anchor?.contains(e.target)&&!anchor.contains(e.relatedTarget))later();});
  doc.addEventListener('click',e=>{const info=e.target.closest('.control-info');if(!info)return;e.preventDefault();const el=info.closest('[data-note]');if(anchor===el&&pinned)hide();else{show(el);pinned=true;}});
  doc.addEventListener('pointerdown',e=>{if(anchor&&!anchor.contains(e.target)&&!note.contains(e.target))hide();});

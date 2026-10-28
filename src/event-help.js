@@ -7,7 +7,7 @@ export function missionHelp(mission){
 export function commandHelp(cmd,args={}){
  const notes={
   create:args.practice?'Create an empty rehearsal, separate from the live event. It has its own roster, roles, votes and scores.':'Create the single live event with four groups. Joining starts closed; complete Setup before admitting players.',
-  joining:args.open?'Let registered players join and receive a balanced group and player number. Prepared or released roles must not be changed.':'Stop new players joining. Existing players stay signed in and keep their group and role.',
+  joining:args.open?'Let registered players join from the website and receive a group with space. After role release, new players join as Faithful; existing roles stay the same. Reset unreleased preparation before reopening joining.':'Stop new players joining. Existing players stay signed in and keep their group and role.',
   prepare_roles:'Randomly assign the configured number of Traitors in each group and close joining. Every group needs more players than Traitors. Players cannot see the roles until you release their files.',
   release_roles:'Let each player privately open their Faithful or Traitor file. Prepare and check all roles first. Released roles cannot be reassigned or rerolled.',
   mission:missionHelp(),
@@ -49,7 +49,6 @@ export function commandHelp(cmd,args={}){
   confirm_objective:'Record physical verification or rejection of a supervised objective with a reason. A Traitor’s report alone is not proof. The result stays private until publication.',
   organiser_message:'Send a private instruction to active Traitors in this group. Assigned authorised organisers can read the conversation.',
   timetable:'Save this running order for all of your events and future rehearsals. It changes the template without resetting event progress. Other devices must reload stale edits.',
-  schedule_move:'Move this activity one place and recalculate target times from the first start time. Save the order before starting an activity.',
   schedule_reload:'Discard your unsaved timetable changes and reload the latest saved running order.',
   slips:'Open printable player number and group slips. These do not include PINs or hidden roles.',
   add_test_players:'Add clearly labelled test players to this rehearsal only. They have no real accounts, PINs or sign ins. Reset unreleased roles first if needed; existing real players are kept.',

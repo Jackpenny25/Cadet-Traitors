@@ -11,7 +11,7 @@ test('versioned deployment migrations install an empty, protected runtime on a f
    create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id));
    create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
    create function auth.jwt() returns jsonb language sql stable as $$select '{}'::jsonb$$;`);
-  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,7);
+  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,8);
   const runtime=files.find(f=>f.endsWith('_single_event_runtime.sql'));
   const normalize=sql=>sql.replace(/\r\n/g,'\n');
   const strip=sql=>normalize(sql).replace(/^begin;\s*$/gim,'').replace(/^commit;\s*$/gim,'');
