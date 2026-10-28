@@ -3,6 +3,7 @@ export function actionableError(error,cmd,args={},state){
   const row=state?.timetable.find(r=>r.id===args.row);if(row){cmd=row.action;args={...args,slot:row.slot,mission:row.mission};}
  }
  const message=error?.message||'The action could not be saved.';
+ if(message.startsWith('Nothing has changed.'))return message;
  if(/fetch|network|timeout|abort/i.test(message))return 'The connection was interrupted. Check Wi-Fi, then try the same action again. A retry will not submit it twice.';
  if(/Check the submitted values/i.test(message))return 'Some fields are missing or invalid. Check the highlighted fields, enter a valid date and whole numbers within the limits, then try again.';
  if(!state?.organiser)return message;

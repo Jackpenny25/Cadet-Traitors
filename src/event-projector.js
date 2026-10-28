@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import {supabaseConfig} from '../dist/supabase-config.js';
 import {esc} from './event-ui.js';
 import {boardSnapshot} from './event-contract.js';
-import {EliminationQueue,crest,eliminationCross} from './event-theatre.js';
+import {EliminationQueue,crest,eliminationCross,eliminationScene,eliminationDuration} from './event-theatre.js';
 const screen=document.getElementById('screen');const token=location.hash.slice(1);
 const deaths=new EliminationQueue();
 let busy=false,revealing=false,current=null,qr='',joinUrl='',lastDraw='';
@@ -12,13 +12,15 @@ function showNext(){
  revealing=true;
  const group=current.groups.find(g=>g.id===player.group);
  const overlay=document.createElement('section');overlay.className='elimination-theatre';overlay.setAttribute('role','status');
- overlay.innerHTML=`<div class="elimination-ring" aria-hidden="true"></div><div class="elimination-dossier"><p class="eyebrow">${esc(group?.name)}</p><p class="elimination-verdict">${esc(player.status)}</p><h2>${esc(player.name)}</h2><span class="verdict-cross" aria-hidden="true"></span></div>`;
+ overlay.innerHTML=eliminationScene(player,group);overlay.style.setProperty('--reveal-duration',eliminationDuration+'ms');
  screen.append(overlay);
+ if(reducedMotion())overlay.classList.add('verdict-complete');
+ else setTimeout(()=>overlay.classList.add('verdict-complete'),Math.round(eliminationDuration*.7));
  setTimeout(()=>{
   deaths.complete(player.id);overlay.remove();revealing=false;draw();
   const tile=screen.querySelector(`[data-player="${player.id}"]`);if(tile)tile.classList.add('just-eliminated');
   showNext();
- },reducedMotion()?1200:4800);
+ },reducedMotion()?1600:eliminationDuration);
 }
 function draw(){
  const s=current;

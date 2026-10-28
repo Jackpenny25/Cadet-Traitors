@@ -10,6 +10,7 @@ import {roleReadiness} from './event-readiness.js';
 import {cadetSummary,cadetMission,controlIsCurrent,currentTask,eventUpdates} from './event-presentation.js';
 import {installNotifications} from './event-notifications.js';
 import {actionableError} from './event-errors.js';
+import {controlAvailability,nextLabels} from './event-controls.js';
 
 const app=document.getElementById('app');
 const controlNotes=installControlNotes();
@@ -27,10 +28,24 @@ const groupBy=id=>event?.groups.find(g=>g.id===id);
 const playerBy=id=>event?.players.find(p=>p.id===id);
 const numberName=p=>p?`${String(p.number).padStart(2,'0')} · ${p.name}`:'No elimination';
 const groupLabel=id=>groupBy(id)?.name||'';
-const controls=(cmd,label,args={},permitted=true)=>btn(cmd,label,{...(target?{group:target}:{}),
- expected_ballots:Object.fromEntries((event?.groups||[]).map(g=>[g.id,g.ballot?.id||null])),
- expected_opportunities:Object.fromEntries((event?.groups||[]).map(g=>[g.id,event?.windows.find(w=>w.group_id===g.id&&w.status==='open')?.id||null])),...args},`${permitted?'':'disabled'} ${event?.groups.filter(g=>!target||g.id===target).some(g=>controlIsCurrent(g,cmd,args))?'data-current-stage aria-label="'+esc(label)+' (current stage)"':''}`,controlHelp(cmd,args));
-function controlHelp(cmd,args={}){return cmd==='mission'?missionHelp(event?.missions.find(m=>m.idx===Number(args.mission))):commandHelp(cmd,args);}
+function controls(cmd,label,args={},permitted=true){
+ const payload={...(target?{group:target}:{}),
+  expected_ballots:Object.fromEntries((event?.groups||[]).map(g=>[g.id,g.ballot?.id||null])),
+  expected_opportunities:Object.fromEntries((event?.groups||[]).map(g=>[g.id,event?.windows.find(w=>w.group_id===g.id&&w.status==='open')?.id||null])),
+  expected_reveals:(event?.reveals||[]).filter(r=>!r.published).map(r=>r.id),...args};
+ const availability=controlAvailability(event,cmd,payload);const note=[!permitted?(page==='timetable'&&timetableDraft?'Save your timetable edits before using this control.':'This control needs the main host or the appropriate NCO permission.'):'',!availability.allowed?availability.reason:'',controlHelp(cmd,args)].filter(Boolean).join(' ');
+ return btn(cmd,label,payload,`${permitted&&availability.allowed?'':'disabled'} ${event?.groups.filter(g=>!payload.group||g.id===payload.group).some(g=>controlIsCurrent(g,cmd,args))?'data-current-stage':''}`,note);
+}
+function groupGuidance(){
+ const groups=event.groups.filter(g=>!target||g.id===target);
+ const different=new Set(groups.map(g=>[g.phase,g.mission,g.banishments,g.ballot?.status].join(':'))).size>1;
+ return `<section class="group-guidance"><h3>${different?'Groups need different next steps':'Next steps for your groups'}</h3>${different?'<p>Results and empty ballots can leave groups at different stages. An all-groups action checks every group first. Already completed steps are kept; blocked groups must be resolved before the action runs.</p>':''}<div class="next-step-grid">${groups.map(g=>{
+ const step=g.next_step;if(!step)return '';const args={group:g.id,...step.next_args};
+ const label=step.next==='mission'?'Begin '+(event.missions.find(m=>m.idx===Number(args.mission))?.title||'mission'):step.next==='discussion'?'Start round table '+(args.round||g.mission+1):nextLabels[step.next];
+ return `<article><h4>${esc(g.name)}</h4><p class="tiny muted">${esc(g.phase)} &middot; ${g.banishments} round tables completed</p><p>${esc(step.reason)}</p>${step.next&&label?controls(step.next,label,args,step.next==='page'||can(step.next)):''}</article>`;
+ }).join('')}</div></section>`;
+}
+function controlHelp(cmd,args={}){return cmd==='start_task'?taskHelp(event?.timetable.find(r=>r.id===args.row),event?.missions):cmd==='mission'?missionHelp(event?.missions.find(m=>m.idx===Number(args.mission))):commandHelp(cmd,args);}
 const can=cmd=>event?.host||event?.nco_permissions?.includes(['pause','resume','extend'].includes(cmd)?'timer':cmd);
 const empty=p=>`<p class="muted">${esc(p)}</p>`;
 function authScreen(){
@@ -61,7 +76,7 @@ function overview(){
  if(event.host&&!event.practice&&!event.is_live)body+=panel('Live event selection',`<p>This event is preserved but is not the single live event.</p>${btn('set_live','Use this as the live event')}`);
  if(event.organiser){
   body+=panel('Live controls',select('control-group','Control groups',[...(event.host?[{id:'',name:'All groups'}]:[]),...event.groups],target,'id="control-group"')+
-   `<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${controls('open_murder','Open second murder',{slot:1},can('open_murder'))}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('pause','Pause',{},can('pause'))}${controls('resume','Resume',{},can('resume'))}${controls('extend','Add one minute',{seconds:60},can('extend'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition. An expired timer never reveals a result automatically.</p>`);
+   `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${controls('open_murder','Open second murder',{slot:1},can('open_murder'))}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('pause','Pause',{},can('pause'))}${controls('resume','Resume',{},can('resume'))}${controls('extend','Add one minute',{seconds:60},can('extend'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition. An expired timer never reveals a result automatically.</p>`);
   if(event.host){body+=mainHostPanel();if(event.practice)body+=rehearsalTools();}
   const reveals=event.reveals.filter(r=>!r.published||r.kind==='Banished'&&!r.role_revealed);
   body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id}):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id})}</div>`).join(''):empty('No outcomes waiting for publication.'));
@@ -149,17 +164,20 @@ function canStartTask(row){return event.host?(row.action!=='release_roles'||role
 function taskMenu(row,dirty){
  const groups=event.groups.filter(g=>!target||g.id===target);
  const beginLabel={activity:'Begin '+row.label,release_roles:'Release private envelopes',mission:'Begin mission',discussion:'Start discussion',open_murder:'Open murder opportunity',finish:'Reveal final results'}[row.action];
- let items=btn('start_task',beginLabel,{row:row.id,revision:event.timetable_revision,...(target?{group:target}:{})},`data-task-start ${dirty||!canStartTask(row)?'disabled':''}`,taskHelp(row,event.missions));
+ let items=controls('start_task',beginLabel,{row:row.id,revision:event.timetable_revision},!dirty&&canStartTask(row));
  const action=(cmd,label,args={},permitted=can(cmd))=>controls(cmd,label,args,!dirty&&permitted);
  if(row.action==='release_roles')items=action('joining',event.joining?'Close joining':'Open joining',{open:!event.joining},event.host&&(!roleReadiness(event).hasPrepared||event.roles_released))+action('prepare_roles','Prepare random roles',{},event.host&&roleReadiness(event).canPrepare)+items;
  if(row.action==='mission')items+=action('planning','Open private planning')+btn('page','Mission card and scoring',{page:'missions'});
  if(row.action==='discussion'){
-  items+=action('open_vote','Open voting')+action('close_vote','Close voting')+action('runoff','Start tied runoff')+action('random_draw','Draw after tied runoff',{},event.host)+action('reopen_ballot','Reopen empty ballot',{},event.host)+action('skip_ballot','Skip empty ballot',{},event.host);
-  if(event.host&&event.practice)items+=action('test_votes','Generate test votes',{},true);
+  const round=Number(row.id.match(/^round([1-3])$/)?.[1])||undefined;
+  items+=action('publish_ready','Reveal ready round-table outcomes',{kind:'ballot',round},can('publish'));
+  items+=action('open_vote','Open voting',{round})+action('close_vote','Close voting',{round})+action('runoff','Start tied runoff',{round})+action('random_draw','Draw after tied runoff',{round},event.host)+action('reopen_ballot','Reopen empty ballot',{round},event.host)+action('skip_ballot','Skip empty ballot',{round},event.host);
+  if(event.host&&event.practice)items+=action('test_votes','Generate test votes',{round},true);
  }
  if(row.action==='open_murder'||row.id==='break'||row.action==='mission'&&Number(row.mission)===1){
   const slot=row.action==='open_murder'?Number(row.slot):1;
   if(row.action!=='open_murder')items+=action('open_murder','Open second murder',{slot});
+  items+=action('publish_ready','Reveal ready murder outcomes',{kind:'murder',slot},can('publish'));
   items+=action('lock_murder','Lock standard choices')+btn('page','Private objective and verification',{page:'overview'});
  }
  if(['discussion','open_murder'].includes(row.action)||row.id==='break'){
@@ -168,13 +186,13 @@ function taskMenu(row,dirty){
   }
  }
  if(row.action==='finish')items=action('finale','Start finale',{},event.host)+items;
- items+=action('pause','Pause timer')+action('resume','Resume timer')+action('extend','Add one minute',{seconds:60});
+
  return `<details class="task-menu" data-task-menu="${esc(row.id)}"><summary>Activity controls</summary><div class="task-menu-options"><p>${esc(row.label)}${dirty?' · Save your time changes before starting or changing a stage.':''}</p>${items}</div></details>`;
 }
 function timetableScreen(){
  const rows=timetableDraft||event.timetable;const dirty=Boolean(timetableDraft);const stale=dirty&&timetableRevision!==event.timetable_revision;
  timetableRenderedRows=rows.map(r=>({...r}));timetableRenderedRevision=timetableDraft?timetableRevision:event.timetable_revision;
- return panel('The running order',`<p>Open the activity controls for its mission, voting, reveals and timer actions. Choose the groups above before using a control.</p>${event.organiser?select('control-group','Start activities for',[...(event.host?[{id:'',name:'All four groups'}]:[]),...event.groups],target,'id="control-group"'):''}${event.host?`<p class="tiny muted">Change a target time to move an activity. Rows sort by time when you leave the field. Save to remember this order across all your events and future rehearsals.</p>${stale?'<p class="schedule-warning" role="alert">The saved order changed on another device. Reload before saving.</p>':''}${form('timetable',rows.map((r,i)=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><span class="schedule-number">${String(i+1).padStart(2,'0')}</span><div class="schedule-edit">${field('time_'+i,'Target time','time',r.time,'required')}${field('minutes_'+i,'Minutes','number',r.minutes,'required min="1" max="60"')}${field('label_'+i,'Activity','text',r.label,'required maxlength="80"')}</div>${taskGroups(r).length?'<p class="stage-marker">Current: '+esc(taskGroups(r).map(g=>g.name).join(', '))+'</p>':''}<div class="schedule-actions">${taskMenu(r,dirty)}</div></div>`).join(''),'Save order for all my games')}${dirty?`<p class="schedule-warning">${stale?'Reload the latest saved order.':'Save your changes before starting an activity.'}</p>${btn('schedule_reload','Discard edits and reload')}`:''}`:rows.map(r=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><time>${esc(r.time)}</time><span>${esc(r.label)} &middot; ${r.minutes} min${taskGroups(r).length?'<small class="stage-marker">Current stage</small>':''}</span>${event.organiser?taskMenu(r,false):''}</div>`).join('')}`);
+ return panel('The running order',`<p>Open the activity controls for its mission, voting, reveals and timer actions. Choose the groups above before using a control.</p>${event.organiser?select('control-group','Start activities for',[...(event.host?[{id:'',name:'All four groups'}]:[]),...event.groups],target,'id="control-group"'):''}${groupGuidance()}${event.host?`<p class="tiny muted">Change a target time to move an activity. Rows sort by time when you leave the field. Save to remember this order across all your events and future rehearsals.</p>${stale?'<p class="schedule-warning" role="alert">The saved order changed on another device. Reload before saving.</p>':''}${form('timetable',rows.map((r,i)=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><span class="schedule-number">${String(i+1).padStart(2,'0')}</span><div class="schedule-edit">${field('time_'+i,'Target time','time',r.time,'required')}${field('minutes_'+i,'Minutes','number',r.minutes,'required min="1" max="60"')}${field('label_'+i,'Activity','text',r.label,'required maxlength="80"')}</div>${taskGroups(r).length?'<p class="stage-marker">Current: '+esc(taskGroups(r).map(g=>g.name).join(', '))+'</p>':''}<div class="schedule-actions">${taskMenu(r,dirty)}</div></div>`).join(''),'Save order for all my games')}${dirty?`<p class="schedule-warning">${stale?'Reload the latest saved order.':'Save your changes before starting an activity.'}</p>${btn('schedule_reload','Discard edits and reload')}`:''}`:rows.map(r=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><time>${esc(r.time)}</time><span>${esc(r.label)} &middot; ${r.minutes} min${taskGroups(r).length?'<small class="stage-marker">Current stage</small>':''}</span>${event.organiser?taskMenu(r,false):''}</div>`).join('')}`);
 }
 function slipsScreen(){return `<div class="btns">${btn('print','Print slips')}${btn('page','Back to roster',{page:'players'})}</div><section id="slips">${event.players.map(p=>`<article class="player-slip"><h2>Trust No One</h2><h3>Player ${esc(p.number)} · ${esc(p.name)}</h3><p>Group: ${esc(groupLabel(p.group))}</p><p>Scan the QR code on the projector, then sign in with your own name and four-digit PIN.</p><p>Keep your PIN and role private. Ask your NCO if you need access recovery.</p></article>`).join('')}</section>`;}
 function logScreen(){return panel('Chronological organiser log',`<p>Newest actions first. Private decisions appear only to authorised organisers. Full technical records are retained in the private recovery export.</p>${event.audit.map(a=>{
@@ -208,7 +226,7 @@ async function sync(redraw=true){
  else{if(!busy&&lobby&&((value.live?.joining&&!lobby.live?.joining)||(value.rehearsals||[]).some(r=>!(lobby.rehearsals||[]).some(old=>old.id===r.id))))notifications.show('Joining is open','You can now join from Event home.');lobby=value;event=null;}
  synced=Date.now();if(redraw&&roleOpen!=='reveal'&&!rolePreview&&fingerprint()!==renderedFingerprint&&Date.now()-interactionAt>1000)render();
 }
-const confirmation={release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
+const confirmation={publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
 async function perform(cmd,args={}){
  if(busy)return;if(confirmation[cmd]&&!window.confirm(confirmation[cmd]))return;
  if(cmd==='delete'){const typed=window.prompt('Type the event title to permanently delete its records. Export a private recovery record first.');if(typed!==event.title)return;args.confirm=typed;}
@@ -265,7 +283,7 @@ async function submitCommand(cmd,args){
  const key=JSON.stringify([cmd,requestEvent,args]);if(pending?.key!==key)pending={key,id:crypto.randomUUID()};
  const result=await rpc('tno_command',{cmd,eid:requestEvent,args:{...args,request_id:pending.id}});
  eid=result.id;if(!eid){event=null;await sync(false);}else await sync(false);
- pending=null;notice=cmd==='start_task'?'Activity started.':cmd==='join'?'You have joined your team.':cmd==='mission'?'Mission started.':cmd==='joining'?(args.open?'Joining is open. Players can join from the website.':'Joining is closed.'):cmd==='vote'?'Your vote has been saved.':'Saved to the event.';
+ pending=null;notice=result.groups_advanced!==undefined?`${result.groups_advanced} group${result.groups_advanced===1?'':'s'} updated.${result.groups_unchanged?' '+result.groups_unchanged+' already completed or running; kept unchanged.':''}`:cmd==='start_task'?'Activity started.':cmd==='join'?'You have joined your team.':cmd==='mission'?'Mission started.':cmd==='joining'?(args.open?'Joining is open. Players can join from the website.':'Joining is closed.'):cmd==='vote'?'Your vote has been saved.':'Saved to the event.';
 }
 document.addEventListener('submit',e=>{const f=e.target;if(!f.dataset.form)return;e.preventDefault();const values=Object.fromEntries(new FormData(f));for(const input of f.querySelectorAll('input[type="checkbox"]'))values[input.name]=input.checked;perform(f.dataset.form,{...JSON.parse(f.dataset.args||'{}'),...values});});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-cmd]');if(b)perform(b.dataset.cmd,JSON.parse(b.dataset.args||'{}'));});

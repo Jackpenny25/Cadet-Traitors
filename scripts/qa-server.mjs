@@ -9,6 +9,7 @@ const ports=(process.env.TNO_QA_PORTS||'4185,4186').split(',').map(Number);
 await fixture.db.exec(await readFile('supabase/migrations/20261023203457_dramatic_four_group_schedule.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261023211459_guard_event_admin_actions.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261028164351_clarify_cadet_flow_and_joining.sql','utf8'));
+await fixture.db.exec(await readFile('supabase/migrations/20261028173202_actionable_group_controls_and_role_labels.sql','utf8'));
 const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
 await fixture.cmd(0,'joining',id,{open:true});
 for(let i=1;i<=50;i++)await fixture.cmd(i,'join');
@@ -69,3 +70,15 @@ if(revealDelay>0)setTimeout(async()=>{
  await fixture.cmd(0,'publish',projector.id,{group:reveal.group_id,reveal:reveal.id});
  console.log('QA elimination published once.');
 },revealDelay);
+
+// Optional local-only input for repeatable animation inspection.
+if(process.env.TNO_QA_INTERACTIVE==='true'){
+ const {createInterface}=await import('node:readline');
+ createInterface({input:process.stdin}).on('line',async line=>{
+  if(line.trim()!=='reveal')return;
+  const state=await fixture.snap(0,projector.id),reveal=state.reveals.find(r=>!r.published);
+  if(!reveal){console.log('No pending fixture outcome.');return;}
+  await fixture.cmd(0,'publish',projector.id,{group:reveal.group_id,reveal:reveal.id});
+  console.log('QA fixture reveal published once.');
+ });
+}
