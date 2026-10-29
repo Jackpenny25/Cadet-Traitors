@@ -12,6 +12,7 @@ import {installNotifications} from './event-notifications.js';
 import {actionableError} from './event-errors.js';
 import {controlAvailability,nextLabels} from './event-controls.js';
 import {missionPlanReview,missionCards,privateMissionPack} from './mission-review.js';
+import {captureFormDrafts,restoreFormDrafts} from './form-drafts.js';
 
 const app=document.getElementById('app');
 const controlNotes=installControlNotes();
@@ -203,6 +204,7 @@ function logScreen(){return panel('Chronological organiser log',`<p>Newest actio
  return `<p><time>${esc(new Date(a.created_at).toLocaleString('en-GB',{timeZone:'Europe/London'}))}</time> · ${esc(a.actor||'Organiser')} · ${esc(a.action.replaceAll('_',' '))}<br><span class="tiny muted">${esc(details)}</span></p>`;
  }).join('')}`);}
 function render(){
+ const failedDrafts=noticeError?captureFormDrafts(app):null;
  const openMenus=[...document.querySelectorAll('.task-menu[open]')].map(el=>el.dataset.taskMenu);
  const focused=document.activeElement;const editing=focused?.closest('form');let editName=focused?.name;const editForm=editing?.dataset.form;
  const editParts=editForm==='timetable'?editName?.match(/^(time|minutes|label)_(\d+)$/):null;const editRow=editParts?timetableRenderedRows[Number(editParts[2])]?.id:null;
@@ -215,6 +217,7 @@ function render(){
  if(!lobby&&!session&&supabaseConfig.turnstileEnabled){const box=document.createElement('section');box.innerHTML='<div class="turnstile-widget"></div><p role="status"></p>';document.querySelector('.card-grid').before(box);void gate.mount(box);}
  if(rolePreview&&event?.host&&event.practice&&event.roles_released){const p=event.players.find(p=>p.id===rolePreview&&p.test_player);if(p)app.insertAdjacentHTML('beforeend',roleEnvelope(p,true,'reveal',{preview:true}));}
  for(const menu of document.querySelectorAll('.task-menu'))menu.open=openMenus.includes(menu.dataset.taskMenu);
+ if(failedDrafts)restoreFormDrafts(app,failedDrafts);
  if(editRow){const index=timetableRenderedRows.findIndex(r=>r.id===editRow);if(index>=0)editName=editParts[1]+'_'+index;}
  if(editName&&editForm)document.querySelector(`form[data-form="${editForm}"] [name="${editName}"]`)?.focus();
  renderedFingerprint=fingerprint();
