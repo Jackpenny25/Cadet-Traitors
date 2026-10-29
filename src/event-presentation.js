@@ -1,6 +1,10 @@
 import {esc,panel,clock,timeLeft} from './event-ui.js';
 
 export function ownGroup(state){return state?.groups.find(g=>g.id===state.me?.group);}
+export function groupsNeedDifferentSteps(groups){
+ return new Set(groups.map(g=>JSON.stringify([g.phase,g.mission,g.banishments,g.next_step?.next,
+  g.next_step?.next_args?.mission,g.next_step?.next_args?.round,g.next_step?.next_args?.slot]))).size>1;
+}
 export function currentMission(state){const g=ownGroup(state);return g?.phase==='Mission'?state.missions.find(m=>m.idx===g.mission):null;}
 export function cadetSummary(state,now){
  const g=ownGroup(state);if(!g)return '';

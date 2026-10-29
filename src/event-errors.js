@@ -20,6 +20,11 @@ export function actionableError(error,cmd,args={},state){
   if(args.voter===args.target)return 'A player cannot vote for themselves. Choose a different active player in Vote target, keep the reason, then record the manual vote again.';
   const voter=state.players?.find(p=>p.id===args.voter),target=state.players?.find(p=>p.id===args.target);
   if(voter?.group!==args.group||target?.group!==args.group)return 'The voter and vote target must both belong to the selected Group. Choose players from that group, then record the manual vote again.';
+  const ballot=state.groups.find(g=>g.id===args.group)?.ballot;
+  if(ballot?.runoff&&ballot.candidates?.length&&!ballot.candidates.includes(args.target)){
+   const names=ballot.candidates.map(id=>state.players.find(p=>p.id===id)?.name).filter(Boolean);
+   return `This is a runoff. Choose one of the tied candidates${names.length?': '+names.join(', '):' shown on this ballot'} in Vote target, then record the manual vote again.`;
+  }
  }
  const groups=state.groups.filter(g=>!args.group||g.id===args.group);
  if(/Check this opportunity|cannot start another discussion|Release roles and resolve|Start discussion before opening/i.test(message)){

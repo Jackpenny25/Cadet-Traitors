@@ -5,8 +5,45 @@ import {eventDatabase} from './runtime-helpers.js';
 import {controlAvailability} from '../src/event-controls.js';
 import {eliminationScene,eliminationDuration} from '../src/event-theatre.js';
 import {installNotifications} from '../src/event-notifications.js';
+import {groupsNeedDifferentSteps} from '../src/event-presentation.js';
 
-const migrations=['20261023203457_dramatic_four_group_schedule.sql','20261023211459_guard_event_admin_actions.sql','20261028164351_clarify_cadet_flow_and_joining.sql','20261028173202_actionable_group_controls_and_role_labels.sql'];
+const migrations=['20261023203457_dramatic_four_group_schedule.sql','20261023211459_guard_event_admin_actions.sql','20261028164351_clarify_cadet_flow_and_joining.sql','20261028173202_actionable_group_controls_and_role_labels.sql','20261029174447_preserve_locked_murder_batches.sql'];
+
+test('batch locking preserves a manual decision and finishes only the other groups',async()=>{
+ const t=await eventDatabase(2);
+ try{
+  for(const name of migrations)await t.db.exec(await readFile('supabase/migrations/'+name,'utf8'));
+  const {id}=await t.cmd(0,'create',null,{title:'Mixed lock test',practice:true,traitors:1});
+  await t.cmd(0,'add_test_players',id,{target_total:24});await t.cmd(0,'prepare_roles',id);await t.cmd(0,'release_roles',id);
+  await t.cmd(0,'mission',id,{mission:0});await t.cmd(0,'discussion',id);await t.cmd(0,'open_vote',id);
+  let s=await t.snap(0,id);
+  for(const g of s.groups){
+   const target=s.players.find(p=>p.group===g.id&&p.role==='Faithful');
+   const voter=s.players.find(p=>p.group===g.id&&p.id!==target.id);
+   await t.cmd(0,'proxy_vote',id,{group:g.id,ballot:g.ballot.id,voter:voter.id,target:target.id,reason:'Paper vote'});
+  }
+  await t.cmd(0,'close_vote',id);s=await t.snap(0,id);
+  for(const r of s.reveals)await t.cmd(0,'publish',id,{group:r.group_id,reveal:r.id});
+  await t.cmd(0,'open_murder',id,{slot:0});s=await t.snap(0,id);
+  const group=s.groups[0].id,opportunity=s.windows.find(w=>w.group_id===group).id;
+  const target=s.players.find(p=>p.group===group&&p.status==='Active'&&p.role==='Faithful').id;
+  await t.cmd(0,'lock_murder',id,{group,opportunity,target,reason:'Offline recorded decision'});
+  const before=await t.snap(0,id);const saved=before.windows.find(w=>w.id===opportunity);
+  assert.equal(controlAvailability(before,'lock_murder').allowed,true);
+  const result=await t.cmd(0,'lock_murder',id);
+  assert.equal(result.groups_advanced,3);assert.equal(result.groups_unchanged,1);
+  const after=await t.snap(0,id);assert.deepEqual(after.windows.find(w=>w.id===opportunity),saved);
+  assert.equal(after.reveals.filter(r=>r.kind==='Murdered').length,4);
+  await assert.rejects(()=>t.cmd(0,'lock_murder',id),/Nothing has changed/);
+  assert.equal((await t.snap(0,id)).reveals.length,after.reveals.length);
+ }finally{await t.close();}
+});
+
+test('group guidance distinguishes the next actions rather than old ballot statuses',()=>{
+ const group={phase:'Closed',mission:0,banishments:1,next_step:{next:'open_murder',next_args:{slot:0}}};
+ assert.equal(groupsNeedDifferentSteps([{...group,ballot:{status:'resolved'}},{...group,ballot:{status:'skipped'}}]),false);
+ assert.equal(groupsNeedDifferentSteps([group,{...group,next_step:{next:'publish'}}]),true);
+});
 test('state-aware controls prevent repeat rounds, explain empty ballots, keep batches atomic and preserve already-running groups',async()=>{
  const t=await eventDatabase(3);
  try{

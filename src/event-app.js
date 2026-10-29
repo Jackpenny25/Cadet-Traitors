@@ -7,7 +7,7 @@ import {hauntedProps} from './haunted-art.js';
 import {commandHelp,missionHelp,taskHelp} from './event-help.js';
 import {installControlNotes} from './control-notes.js';
 import {roleReadiness} from './event-readiness.js';
-import {cadetSummary,cadetMission,controlIsCurrent,currentTask,eventUpdates} from './event-presentation.js';
+import {cadetSummary,cadetMission,controlIsCurrent,currentTask,eventUpdates,groupsNeedDifferentSteps} from './event-presentation.js';
 import {installNotifications} from './event-notifications.js';
 import {actionableError} from './event-errors.js';
 import {controlAvailability,nextLabels} from './event-controls.js';
@@ -42,7 +42,7 @@ function controls(cmd,label,args={},permitted=true){
 }
 function groupGuidance(){
  const groups=event.groups.filter(g=>!target||g.id===target);
- const different=new Set(groups.map(g=>[g.phase,g.mission,g.banishments,g.ballot?.status].join(':'))).size>1;
+ const different=groupsNeedDifferentSteps(groups);
  return `<section class="group-guidance"><h3>${different?'Groups need different next steps':'Next steps for your groups'}</h3>${different?'<p>Results and empty ballots can leave groups at different stages. An all-groups action checks every group first. Already completed steps are kept; blocked groups must be resolved before the action runs.</p>':''}<div class="next-step-grid">${groups.map(g=>{
  const step=g.next_step;if(!step)return '';const args={group:g.id,...step.next_args};
  const label=step.next==='mission'?'Begin '+(event.missions.find(m=>m.idx===Number(args.mission))?.title||'mission'):step.next==='discussion'?'Start round table '+(args.round||g.mission+1):nextLabels[step.next];

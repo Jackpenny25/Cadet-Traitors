@@ -21,3 +21,10 @@ test('an unavailable deployed command gives an update path and preserves unrelat
  assert.match(actionableError(new Error('Confirm the selected event title and mission plan.'),'apply_mission_plan',{}, {title:'QA rehearsal'}),/exact selected event title: QA rehearsal/);
  assert.equal(actionableError(new Error('Only the main host can do that.'),'delete_event'), 'Only the main host can do that.');
 });
+
+test('a same-group player outside a runoff receives the names to choose instead',()=>{
+ const state={organiser:true,groups:[{id:'one',ballot:{runoff:true,candidates:['a','b']}}],players:[
+  {id:'a',name:'Alex',group:'one'},{id:'b',name:'Ben',group:'one'},{id:'c',name:'Casey',group:'one'}]};
+ const message=actionableError(new Error('Choose an eligible active player in this group, without self voting.'),'proxy_vote',{group:'one',voter:'a',target:'c'},state);
+ assert.match(message,/runoff.*Alex, Ben.*Vote target/);
+});
