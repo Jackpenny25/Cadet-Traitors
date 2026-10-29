@@ -82,4 +82,9 @@ test('cadet presentation only includes the current team and active mission; cloc
  assert.deepEqual(eventUpdates(null,state),[]);
  const privateUpdate=eventUpdates(state,{...state,messages:[{id:1,body:'secret target',sender:'secret partner'}]});
  assert.doesNotMatch(JSON.stringify(privateUpdate),/secret target|secret partner/);
+ const results={...state,ended:true,groups:[{...state.groups[0],phase:'Results',winner:'Traitors'},state.groups[1]]};
+ assert.match(cadetSummary(results,Date.now()),/Traitors win/);
+ assert.doesNotMatch(cadetSummary({...results,ended:false},Date.now()),/Traitors win/);
+ assert.doesNotMatch(cadetSummary(results,Date.now()),/Other team/);
+ assert.equal(currentTask({...results.groups[0],active_task:'archive'},[{id:'archive',action:'mission'},{id:'results',action:'finish'}]),'results');
 });

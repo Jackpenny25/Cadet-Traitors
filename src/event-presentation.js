@@ -4,7 +4,7 @@ export function ownGroup(state){return state?.groups.find(g=>g.id===state.me?.gr
 export function currentMission(state){const g=ownGroup(state);return g?.phase==='Mission'?state.missions.find(m=>m.idx===g.mission):null;}
 export function cadetSummary(state,now){
  const g=ownGroup(state);if(!g)return '';
- return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${esc(g.name)}</h2><p>${esc(g.phase)}${g.paused?' · Paused':''}</p></div><span class="clock" data-clock="${esc(g.id)}">${clock(timeLeft(g,now))}</span></section>`;
+ return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${esc(g.name)}</h2><p>${esc(g.phase)}${g.paused?' · Paused':''}</p>${state.ended&&g.winner?`<h3>${esc(g.winner)} win</h3>`:''}</div><span class="clock" data-clock="${esc(g.id)}">${clock(timeLeft(g,now))}</span></section>`;
 }
 export function cadetMission(state){
  const m=currentMission(state);if(!m)return '';
@@ -20,12 +20,12 @@ export function controlIsCurrent(g,cmd,args={}){
 }
 export function currentTask(g,rows){
  if(g.phase==='Joining')return null;
+ if(g.phase==='Results'||g.phase==='Finale')return rows.find(r=>r.action==='finish')?.id;
  if(g.active_task)return rows.find(r=>r.id===g.active_task)?.id||null;
  // Existing events retain a useful highlight before their next organiser action.
  if(g.phase==='Mission')return rows.find(r=>r.action==='mission'&&Number(r.mission)===g.mission)?.id;
  if(['Discussion','Voting','Closed','Planning'].includes(g.phase))return rows.find(r=>r.id==='round'+(g.mission+1))?.id;
  if(g.phase==='Roles')return rows.find(r=>r.action==='release_roles')?.id;
- if(g.phase==='Results')return rows.find(r=>r.action==='finish')?.id;
  return null;
 }
 export function eventUpdates(before,after){
