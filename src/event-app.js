@@ -13,11 +13,12 @@ import {actionableError} from './event-errors.js';
 import {controlAvailability,nextLabels} from './event-controls.js';
 import {missionPlanReview,missionCards,privateMissionPack} from './mission-review.js';
 import {captureFormDrafts,restoreFormDrafts} from './form-drafts.js';
+import {confirmAction} from './event-confirmation.js';
 
 const app=document.getElementById('app');
 const controlNotes=installControlNotes();
 const notifications=installNotifications();
-let session=null,lobby=null,event=null,eid=null,page='overview',target='',busy=false,notice='',epoch=0,pending=null;
+let session=null,lobby=null,event=null,eid=null,page='overview',target='',busy=false,confirming=false,notice='',epoch=0,pending=null;
 let synced=0,serverOffset=0,roleOpen=false,holdTimer=null,sound=false,previousExpired=new Set(),draft=null,wizardStep=0;
 let renderedFingerprint='',interactionAt=0;
 let timetableDraft=null,timetableRevision=null;
@@ -82,7 +83,7 @@ function overview(){
    `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${controls('open_murder','Open second murder',{slot:1},can('open_murder'))}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('pause','Pause',{},can('pause'))}${controls('resume','Resume',{},can('resume'))}${controls('extend','Add one minute',{seconds:60},can('extend'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition. An expired timer never reveals a result automatically.</p>`);
   if(event.host){body+=mainHostPanel();if(event.practice)body+=rehearsalTools();}
   const reveals=event.reveals.filter(r=>!r.published||r.kind==='Banished'&&!r.role_revealed);
-  body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id}):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id})}</div>`).join(''):empty('No outcomes waiting for publication.'));
+  body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id},can('publish')?'':'disabled'):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id},can('reveal_role')?'':'disabled')}</div>`).join(''):empty('No outcomes waiting for publication.'));
   body+=murderControls();
   if(event.host){const open=event.windows.filter(w=>w.mode==='standard'&&w.status==='open');if(open.length)body+=panel('Manual murder decision',`<p>Use only when recording a decision taken off the website. A reason is required and the outcome stays private until publication.</p>${open.map(w=>form('lock_murder',`<h3>${esc(groupLabel(w.group_id))}</h3>`+select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})))+field('reason','Why is a manual decision needed?','text','','required maxlength="200"'),'Record private decision',{group:w.group_id,opportunity:w.id})).join('')}`);}
   if(can('open_murder'))body+=panel('Designated murder decision maker',event.groups.map(g=>form('open_murder',`<h3>${esc(g.name)}</h3>`+select('slot','Opportunity',[{id:0,name:'First murder'},{id:1,name:'Second murder'}])+select('decider','Designated active Traitor',event.players.filter(p=>p.group===g.id&&p.status==='Active'&&p.role==='Traitor').map(p=>({id:p.id,name:numberName(p)}))),'Open this opportunity',{group:g.id})).join(''));
@@ -129,7 +130,7 @@ function playerActions(){
 function murderControls(){
  return event.windows.map(w=>{
   const args={group:w.group_id,opportunity:w.id};
-  return panel(`${groupLabel(w.group_id)} · Murder opportunity ${w.slot+1}`,`<p>${w.mode==='plain'?'Supervised objective':'Standard selection'} · ${esc(w.status)}${w.reason?' · '+esc(w.reason):''}</p><p>${w.target?'Private target: '+esc(numberName(playerBy(w.target))):'No target confirmed.'}</p>${w.mode==='plain'?`<p>${esc(w.objective)}</p><p>${w.reported?'Traitor reports completion; verify physically.':'No completion report yet.'}</p>${w.status==='open'?form('objective',select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})),w.target)+text('text','Private physical objective',w.objective,500),'Assign objective',args)+form('confirm_objective',check('success','Physical objective succeeded')+field('reason','Verification or rejection reason','text','','required maxlength="200"'),'Resolve privately',args):''}`:`${(w.proposals||[]).map(p=>`<p>${esc(numberName(playerBy(p.actor)))} chose ${esc(numberName(playerBy(p.target)))}</p>`).join('')}${w.status==='open'?btn('lock_murder','Lock decisions privately',args,can('lock_murder')?'':'disabled'):''}`}`);
+  return panel(`${groupLabel(w.group_id)} · Murder opportunity ${w.slot+1}`,`<p>${w.mode==='plain'?'Supervised objective':'Standard selection'} · ${esc(w.status)}${w.reason?' · '+esc(w.reason):''}</p><p>${w.target?'Private target: '+esc(numberName(playerBy(w.target))):'No target confirmed.'}</p>${w.mode==='plain'?`<p>${esc(w.objective)}</p><p>${w.reported?'Traitor reports completion; verify physically.':'No completion report yet.'}</p>${w.status==='open'?form('objective',select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})),w.target)+text('text','Private physical objective',w.objective,500),'Assign objective',args,can('objective')?'':'disabled')+form('confirm_objective',check('success','Physical objective succeeded')+field('reason','Verification or rejection reason','text','','required maxlength="200"'),'Resolve privately',args,can('confirm_objective')?'':'disabled'):''}`:`${(w.proposals||[]).map(p=>`<p>${esc(numberName(playerBy(p.actor)))} chose ${esc(numberName(playerBy(p.target)))}</p>`).join('')}${w.status==='open'?btn('lock_murder','Lock decisions privately',args,can('lock_murder')?'':'disabled'):''}`}`);
  }).join('');
 }
 function playersScreen(){
@@ -234,7 +235,12 @@ async function sync(redraw=true){
 const confirmation={publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
 async function perform(cmd,args={}){
  if(['logout','select','back'].includes(cmd))privatePlanDraft=null;
- if(busy)return;if(confirmation[cmd]&&!window.confirm(confirmation[cmd]))return;
+ if(busy||confirming)return;
+ if(confirmation[cmd]){
+  confirming=true;let accepted;
+  try{accepted=await confirmAction(cmd,confirmation[cmd]);}finally{confirming=false;}
+  if(!accepted)return;
+ }
  if(cmd==='delete'){const typed=window.prompt('Type the event title to permanently delete its records. Export a private recovery record first.');if(typed!==event.title)return;args.confirm=typed;}
  busy=true;notice='';noticeError=false;app.querySelectorAll('button').forEach(b=>b.disabled=true);
  try{
@@ -276,7 +282,7 @@ async function perform(cmd,args={}){
   }else if(cmd==='start_task'){
    const row=event.timetable.find(r=>r.id===args.row);
    if(!row)throw new Error('Reload the timetable.');
-   if(confirmation[row.action]&&!window.confirm(confirmation[row.action]))return;
+   if(confirmation[row.action]&&!await confirmAction(row.action,confirmation[row.action]))return;
    await submitCommand(cmd,args);
   }else if(cmd==='proxy_vote'){await submitCommand(cmd,{...args,ballot:args.expected_ballots?.[args.group]});
   }else if(cmd==='add_test_players'){await submitCommand(cmd,args);notice='Test players added to this rehearsal. Prepare roles when all groups are ready.';
@@ -320,7 +326,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){roleOpen=f
 window.addEventListener('online',()=>{if(lobby)refreshNow();});
 client.auth.onAuthStateChange((name,s)=>{session=s;if(name==='SIGNED_OUT'){epoch++;lobby=null;event=null;eid=null;roleOpen=false;rolePreview=null;timetableDraft=null;timetableRevision=null;render();}});
 async function refreshNow(){
- if(busy)return;
+ if(busy||confirming)return;
  try{await sync(!document.activeElement?.closest('form'));const status=document.getElementById('connection');if(status)status.textContent='Synced '+new Date(synced).toLocaleTimeString();}
  catch(error){if(error.message==='Sign in first.'){epoch++;lobby=null;event=null;eid=null;roleOpen=false;noticeError=true;notice='Your session expired. Sign in again.';render();notifications.show('Sign in again',notice,true);}else if(error.code==='TNO_RUNTIME_MISMATCH'){noticeError=true;notice=error.message;notifications.show('Event unavailable',notice,true);const node=document.getElementById('notice');if(node){node.textContent=notice;node.hidden=false;}}else{const status=document.getElementById('connection');if(status)status.textContent='Connection lost. Displayed information may be out of date. Unsaved actions are not queued.';}}
 }
