@@ -5,8 +5,22 @@ export function actionableError(error,cmd,args={},state){
  const message=error?.message||'The action could not be saved.';
  if(message.startsWith('Nothing has changed.'))return message;
  if(/fetch|network|timeout|abort/i.test(message))return 'The connection was interrupted. Check Wi-Fi, then try the same action again. A retry will not submit it twice.';
+ if(cmd==='create'&&/Check group sizes, role counts and event title/.test(message)){
+  const size=Number(args.size??13),traitors=Number(args.traitors??2);
+  if(!String(args.title??'').trim()||String(args.title).trim().length>80)return 'Enter an event name between 1 and 80 characters, then create the event again.';
+  if(!Number.isInteger(size)||size<2||size>25)return 'Enter a whole number from 2 to 25 for Players per group. Four groups can hold at most 100 players in total.';
+  if(!Number.isInteger(traitors)||traitors<1||traitors>5)return 'Enter a whole number from 1 to 5 for Traitors per group.';
+  if(traitors>=size)return `Each group needs at least one Faithful. With ${traitors} Traitors, enter at least ${traitors+1} Players per group, or reduce Traitors per group.`;
+ }
+ if(/Unknown event command/.test(message))return 'This control needs a database update that has not been installed yet. Your action was not saved. Ask the main host to update the game database, then reload this page before trying again.';
+ if(cmd==='apply_mission_plan'&&/Confirm the selected event title/.test(message))return `Type the exact selected event title${state?.title?': '+state.title:''} in the confirmation field, then apply the plan again. Your private stage fields have been kept.`;
  if(/Check the submitted values/i.test(message))return 'Some fields are missing or invalid. Check the highlighted fields, enter a valid date and whole numbers within the limits, then try again.';
  if(!state?.organiser)return message;
+ if(cmd==='proxy_vote'&&/eligible active player.*self voting/.test(message)){
+  if(args.voter===args.target)return 'A player cannot vote for themselves. Choose a different active player in Vote target, keep the reason, then record the manual vote again.';
+  const voter=state.players?.find(p=>p.id===args.voter),target=state.players?.find(p=>p.id===args.target);
+  if(voter?.group!==args.group||target?.group!==args.group)return 'The voter and vote target must both belong to the selected Group. Choose players from that group, then record the manual vote again.';
+ }
  const groups=state.groups.filter(g=>!args.group||g.id===args.group);
  if(/Check this opportunity|cannot start another discussion|Release roles and resolve|Start discussion before opening/i.test(message)){
   if(!state.roles_released)return 'Prepare random roles, then release the private envelopes in Main host before starting this stage.';

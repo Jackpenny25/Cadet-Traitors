@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readdir,readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
+import {missionPlan} from '../src/mission-plan.js';
 test('versioned deployment migrations install an empty, protected runtime on a fresh project',async()=>{
  const db=new PGlite({extensions:{pgcrypto}});
  try{
@@ -11,12 +12,13 @@ test('versioned deployment migrations install an empty, protected runtime on a f
    create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id));
    create function auth.uid() returns uuid language sql stable as $$select null::uuid$$;
    create function auth.jwt() returns jsonb language sql stable as $$select '{}'::jsonb$$;`);
-  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,10);
+  const files=(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();assert.equal(files.length,11);
   const runtime=files.find(f=>f.endsWith('_single_event_runtime.sql'));
   const normalize=sql=>sql.replace(/\r\n/g,'\n');
   const strip=sql=>normalize(sql).replace(/^begin;\s*$/gim,'').replace(/^commit;\s*$/gim,'');
   assert.equal(normalize(await readFile('supabase/migrations/'+runtime,'utf8')),strip(await readFile('supabase/event-runtime.sql','utf8')),'Packaged runtime must match tested source');
   for(const file of files)await db.exec(await readFile('supabase/migrations/'+file,'utf8'));
+  assert.deepEqual((await db.query('select private.mission_plan_cards() as cards')).rows[0].cards,missionPlan,'Deployed public cards retain the source text and punctuation');
   const version=(await db.query('select public.tno_connection_check() as data')).rows[0].data;
   assert.equal(version.schema_version,4);
   assert.equal((await db.query('select count(*)::integer as n from public.players')).rows[0].n,0);

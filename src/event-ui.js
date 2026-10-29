@@ -7,7 +7,7 @@ export const text=(name,label,value='',max=1000)=>`<label class="field">${esc(la
 export const check=(name,label,on=false)=>`<label class="check"><input name="${name}" type="checkbox" ${on?'checked':''}>${esc(label)}</label>`;
 export const options=(items,value)=>items.map(i=>`<option value="${esc(i.id)}" ${String(i.id)===String(value)?'selected':''}>${esc(i.name)}</option>`).join('');
 export const select=(name,label,items,value,extra='')=>`<label class="field">${esc(label)}<select name="${name}" ${extra}>${options(items,value)}</select></label>`;
-export const form=(cmd,body,label='Save',args={})=>`<form data-form="${cmd}" data-args="${esc(JSON.stringify(args))}" class="stack">${body}${withNote(`<button class="gold" type="submit">${esc(label)}</button>`,label,commandHelp(cmd,args))}</form>`;
+export const form=(cmd,body,label='Save',args={},submitExtra='')=>`<form data-form="${cmd}" data-args="${esc(JSON.stringify(args))}" class="stack">${body}${withNote(`<button class="gold" type="submit" ${submitExtra}>${esc(label)}</button>`,label,commandHelp(cmd,args))}</form>`;
 export const panel=(title,body,cls='')=>`<section class="panel ${cls}"><div class="panel-head"><h2>${esc(title)}</h2></div><div class="panel-body">${body}</div></section>`;
 export const timeLeft=(group,serverNow=Date.now())=>group.paused||!group.deadline?Math.max(0,Number(group.remaining)||0):Math.max(0,Math.ceil((Date.parse(group.deadline)-serverNow)/1000));
 export const clock=n=>`${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
