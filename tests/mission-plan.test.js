@@ -40,8 +40,15 @@ test('mission migration is inert; applying is host-only, revision checked, atomi
   const before=await invariant(t,id);const cardsBefore=(await t.snap(0,id)).missions;
   await install(t);assert.deepEqual(await invariant(t,id),before);assert.deepEqual((await t.snap(0,id)).missions,cardsBefore);
   s=await t.snap(0,id);const args=apply(s);
-  await assert.rejects(()=>t.cmd(25,'apply_mission_plan',id,args),/main host/);
-  await assert.rejects(()=>t.cmd(26,'apply_mission_plan',id,args),/main host/);
+  const smallArgs={...args,private_material:material.map(({idx})=>({idx,notes:'Synthetic clues',answer:'Synthetic answer',scoring:'Synthetic marking'}))};
+  assert.ok(Buffer.byteLength(JSON.stringify(smallArgs))<4096);
+  assert.ok(Buffer.byteLength(JSON.stringify(args))>4096);
+  for(const actor of [25,26]){
+   // Ordinary requests reach host authorisation. Oversized requests are rejected
+   // at the outer size guard before any private editor command is evaluated.
+   await assert.rejects(()=>t.cmd(actor,'apply_mission_plan',id,smallArgs),/main host/);
+   await assert.rejects(()=>t.cmd(actor,'apply_mission_plan',id,args),/^Error: Invalid request\.$/);
+  }
   await assert.rejects(()=>t.cmd(0,'apply_mission_plan',id,{...args,revision:0}),/running order changed/);
   await assert.rejects(()=>t.cmd(0,'apply_mission_plan',id,{...args,mission_revision:0}),/mission cards changed/);
   await assert.rejects(()=>t.cmd(0,'apply_mission_plan',id,{...args,private_material:[material[0],material[0],material[2]]}),/Each stage/);
