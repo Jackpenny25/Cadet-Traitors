@@ -11,6 +11,7 @@ import {cadetSummary,cadetMission,controlIsCurrent,currentTask,eventUpdates} fro
 import {installNotifications} from './event-notifications.js';
 import {actionableError} from './event-errors.js';
 import {controlAvailability,nextLabels} from './event-controls.js';
+import {missionPlanReview,missionCards,privateMissionPack} from './mission-review.js';
 
 const app=document.getElementById('app');
 const controlNotes=installControlNotes();
@@ -21,6 +22,7 @@ let renderedFingerprint='',interactionAt=0;
 let timetableDraft=null,timetableRevision=null;
 let timetableRenderedRows=[],timetableRenderedRevision=null;
 let rolePreview=null,noticeError=false;
+let privatePlanDraft=null;
 const fingerprint=()=>JSON.stringify(event||lobby,(key,value)=>key==='server_now'?undefined:key==='seen_at'?(page==='players'&&value?Math.floor(Date.parse(value)/20000):undefined):value);
 const practiceId=new URLSearchParams(location.search).get('practice');
 const gate=new TurnstileGate({siteKey:supabaseConfig.turnstileSiteKey,onChange:()=>document.querySelectorAll('.auth-form button').forEach(b=>b.disabled=busy||(!session&&supabaseConfig.turnstileEnabled&&!gate.token))});
@@ -138,7 +140,7 @@ function playersScreen(){
  if(event.host)body+=panel('Late arrival approval',form('late_join',field('name','Registered account name','text','','required maxlength="30"')+select('group','Group',event.groups)+field('reason','Reason for admitting this late player','text','','required maxlength="200"'),'Approve late arrival')+'<p>A late player admitted after role release joins as Faithful. Existing players’ roles are preserved.</p>')+btn('slips','Print player slips');}
  return body;
 }
-function missionsScreen(){return event.missions.map(m=>panel(m.title,`<p>${esc(m.instructions)}</p><p>${esc(m.scoring)} · Maximum ${m.max_points} points · ${m.minutes} minutes</p>${event.groups.map(g=>{const result=event.scores.find(s=>s.group_id===g.id&&s.mission===m.idx);return `<p class="tiny muted">${esc(g.name)}: ${result?.points??0} points · ${result?.completed?"Completed":"In progress"}</p>`;}).join("")}${event.organiser?`<details><summary>NCO notes, equipment and answers</summary><p>${esc(m.notes||'Organiser to prepare and verify before the event.')}</p><p>${esc(m.equipment)}</p><p>${esc(m.answer||'No verified answer supplied. Set this during preparation.')}</p></details>${form('score',select('group','Group',event.groups,target)+field('points','Total points earned so far','number',0,`required min="0" max="${m.max_points}"`)+check('completed','Mission completed')+field('reason','Reason or completed stage','text','','required maxlength="200"'),'Save mission result',{mission:m.idx})}${event.host?`<details><summary>Edit mission card</summary>${form('edit_mission',field('title','Title','text',m.title,'required maxlength="80"')+text('instructions','Public instructions',m.instructions)+text('notes','Private NCO notes',m.notes,500)+text('answer','Private verified answer',m.answer,500)+text('equipment','Equipment checklist',m.equipment,500)+text('scoring','Scoring rules',m.scoring,500)+field('max_points','Maximum points','number',m.max_points,'required min="0" max="1000"')+field('minutes','Duration in minutes','number',m.minutes,'required min="1" max="60"'),'Save mission',{mission:m.idx})}</details>`:''}`:''}`)).join('');}
+function missionsScreen(){return missionPlanReview(event,privatePlanDraft?.event===event.id?privatePlanDraft.rows:null)+missionCards(event,target);}
 function setupScreen(){
  if(!event.host)return empty('Only the main host can configure the event.');
  let body='';
@@ -192,7 +194,7 @@ function taskMenu(row,dirty){
 function timetableScreen(){
  const rows=timetableDraft||event.timetable;const dirty=Boolean(timetableDraft);const stale=dirty&&timetableRevision!==event.timetable_revision;
  timetableRenderedRows=rows.map(r=>({...r}));timetableRenderedRevision=timetableDraft?timetableRevision:event.timetable_revision;
- return panel('The running order',`<p>Open the activity controls for its mission, voting, reveals and timer actions. Choose the groups above before using a control.</p>${event.organiser?select('control-group','Start activities for',[...(event.host?[{id:'',name:'All four groups'}]:[]),...event.groups],target,'id="control-group"'):''}${groupGuidance()}${event.host?`<p class="tiny muted">Change a target time to move an activity. Rows sort by time when you leave the field. Save to remember this order across all your events and future rehearsals.</p>${stale?'<p class="schedule-warning" role="alert">The saved order changed on another device. Reload before saving.</p>':''}${form('timetable',rows.map((r,i)=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><span class="schedule-number">${String(i+1).padStart(2,'0')}</span><div class="schedule-edit">${field('time_'+i,'Target time','time',r.time,'required')}${field('minutes_'+i,'Minutes','number',r.minutes,'required min="1" max="60"')}${field('label_'+i,'Activity','text',r.label,'required maxlength="80"')}</div>${taskGroups(r).length?'<p class="stage-marker">Current: '+esc(taskGroups(r).map(g=>g.name).join(', '))+'</p>':''}<div class="schedule-actions">${taskMenu(r,dirty)}</div></div>`).join(''),'Save order for all my games')}${dirty?`<p class="schedule-warning">${stale?'Reload the latest saved order.':'Save your changes before starting an activity.'}</p>${btn('schedule_reload','Discard edits and reload')}`:''}`:rows.map(r=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><time>${esc(r.time)}</time><span>${esc(r.label)} &middot; ${r.minutes} min${taskGroups(r).length?'<small class="stage-marker">Current stage</small>':''}</span>${event.organiser?taskMenu(r,false):''}</div>`).join('')}`);
+ return panel('The running order',`<p>Open the activity controls for its mission, voting, reveals and timer actions. Choose the groups above before using a control.</p>${event.organiser?select('control-group','Start activities for',[...(event.host?[{id:'',name:'All four groups'}]:[]),...event.groups],target,'id="control-group"'):''}${groupGuidance()}${event.host?`<p class="tiny muted">Change a target time to move an activity. Rows sort by time when you leave the field. Save to update this event only. Other events and future rehearsals keep their saved running orders.</p>${stale?'<p class="schedule-warning" role="alert">The saved order changed on another device. Reload before saving.</p>':''}${form('timetable',rows.map((r,i)=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><span class="schedule-number">${String(i+1).padStart(2,'0')}</span><div class="schedule-edit">${field('time_'+i,'Target time','time',r.time,'required')}${field('minutes_'+i,'Minutes','number',r.minutes,'required min="1" max="60"')}${field('label_'+i,'Activity','text',r.label,'required maxlength="80"')}</div>${taskGroups(r).length?'<p class="stage-marker">Current: '+esc(taskGroups(r).map(g=>g.name).join(', '))+'</p>':''}<div class="schedule-actions">${taskMenu(r,dirty)}</div></div>`).join(''),'Save order for this event')}${dirty?`<p class="schedule-warning">${stale?'Reload the latest saved order.':'Save your changes before starting an activity.'}</p>${btn('schedule_reload','Discard edits and reload')}`:''}`:rows.map(r=>`<div class="schedule-row ${taskGroups(r).length?'is-current-stage':''}"><time>${esc(r.time)}</time><span>${esc(r.label)} &middot; ${r.minutes} min${taskGroups(r).length?'<small class="stage-marker">Current stage</small>':''}</span>${event.organiser?taskMenu(r,false):''}</div>`).join('')}`);
 }
 function slipsScreen(){return `<div class="btns">${btn('print','Print slips')}${btn('page','Back to roster',{page:'players'})}</div><section id="slips">${event.players.map(p=>`<article class="player-slip"><h2>Trust No One</h2><h3>Player ${esc(p.number)} · ${esc(p.name)}</h3><p>Group: ${esc(groupLabel(p.group))}</p><p>Scan the QR code on the projector, then sign in with your own name and four-digit PIN.</p><p>Keep your PIN and role private. Ask your NCO if you need access recovery.</p></article>`).join('')}</section>`;}
 function logScreen(){return panel('Chronological organiser log',`<p>Newest actions first. Private decisions appear only to authorised organisers. Full technical records are retained in the private recovery export.</p>${event.audit.map(a=>{
@@ -228,6 +230,7 @@ async function sync(redraw=true){
 }
 const confirmation={publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
 async function perform(cmd,args={}){
+ if(['logout','select','back'].includes(cmd))privatePlanDraft=null;
  if(busy)return;if(confirmation[cmd]&&!window.confirm(confirmation[cmd]))return;
  if(cmd==='delete'){const typed=window.prompt('Type the event title to permanently delete its records. Export a private recovery record first.');if(typed!==event.title)return;args.confirm=typed;}
  busy=true;notice='';noticeError=false;app.querySelectorAll('button').forEach(b=>b.disabled=true);
@@ -262,6 +265,9 @@ async function perform(cmd,args={}){
   }else if(cmd==='recover'){await rpc('tno_recover',{eid,pid:args.player,new_pin:args.pin});await sync(false);notice='PIN replaced. Previous sessions are revoked; the player keeps their number, group, role and votes.';
   }else if(cmd==='assign_staff'){const groups=Object.keys(args).filter(k=>k.startsWith('group_')&&args[k]).map(k=>k.slice(6));await submitCommand(cmd,{name:args.name,groups});
   }else if(cmd==='permissions'){await submitCommand(cmd,{permissions:Object.keys(args).filter(k=>args[k]===true)});
+  }else if(cmd==='apply_mission_plan'){
+   const private_material=privateMissionPack({private_material:[0,1,2].map(idx=>({idx,notes:args['notes_'+idx],answer:args['answer_'+idx],scoring:args['scoring_'+idx]}))});
+   await submitCommand(cmd,{plan_id:args.plan_id,confirm:args.confirm,revision:args.revision,mission_revision:args.mission_revision,private_material});privatePlanDraft=null;timetableDraft=null;timetableRevision=null;notice='Mission plan saved to this event only. Other events and game progress are preserved.';
   }else if(cmd==='schedule_reload'){timetableDraft=null;timetableRevision=null;
   }else if(cmd==='timetable'){captureTimetable();await submitCommand(cmd,{rows:timetableDraft,revision:timetableRevision});timetableDraft=null;timetableRevision=null;
   }else if(cmd==='start_task'){
@@ -287,6 +293,17 @@ async function submitCommand(cmd,args){
 }
 document.addEventListener('submit',e=>{const f=e.target;if(!f.dataset.form)return;e.preventDefault();const values=Object.fromEntries(new FormData(f));for(const input of f.querySelectorAll('input[type="checkbox"]'))values[input.name]=input.checked;perform(f.dataset.form,{...JSON.parse(f.dataset.args||'{}'),...values});});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-cmd]');if(b)perform(b.dataset.cmd,JSON.parse(b.dataset.args||'{}'));});
+document.addEventListener('change',async e=>{
+ if(e.target.id==='private-mission-pack'){
+  try{const file=e.target.files[0];if(!file)return;if(file.size>250000)throw new Error('Private pack is too large.');privatePlanDraft={event:event.id,rows:privateMissionPack(JSON.parse(await file.text()))};render();}
+  catch(error){notifications.show('Could not load pack',error.message,true);}return;
+ }
+ if(e.target.matches('[data-score-group]')){
+  const f=e.target.closest('form'),idx=JSON.parse(f.dataset.args).mission;
+  const saved=event.scores.find(s=>s.group_id===e.target.value&&s.mission===idx);
+  f.elements.points.value=saved?.points??0;f.elements.completed.checked=Boolean(saved?.completed);f.elements.reason.value=saved?.reason||'';return;
+ }
+});
 document.addEventListener('change',e=>{if(e.target.closest('[data-form="timetable"]')&&e.target.type==='time'){captureTimetable();timetableDraft=sortSchedule(timetableDraft);render();return;}if(e.target.id==='control-group'){target=e.target.value;render();}if(e.target.id==='sound-toggle')sound=e.target.checked;});
 function beginHold(e){if(!e.target.closest('#role-hold')||!event?.roles_released)return;clearTimeout(holdTimer);e.target.closest('#role-hold').classList.add('seal-charging');holdTimer=setTimeout(()=>{roleOpen='reveal';render();document.getElementById('seal-role')?.focus();},900);}
 function endHold(){clearTimeout(holdTimer);document.getElementById('role-hold')?.classList.remove('seal-charging');}

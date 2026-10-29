@@ -10,7 +10,13 @@ await fixture.db.exec(await readFile('supabase/migrations/20261023203457_dramati
 await fixture.db.exec(await readFile('supabase/migrations/20261023211459_guard_event_admin_actions.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261028164351_clarify_cadet_flow_and_joining.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261028173202_actionable_group_controls_and_role_labels.sql','utf8'));
+await fixture.db.exec(await readFile('supabase/migrations/20261028205344_evidence_room_stages.sql','utf8'));
 const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
+if(process.env.TNO_PRIVATE_MISSION_PLAN_PATH){
+ const pack=JSON.parse(await readFile(process.env.TNO_PRIVATE_MISSION_PLAN_PATH,'utf8'));
+ const state=await fixture.snap(0,id);
+ await fixture.cmd(0,'apply_mission_plan',id,{plan_id:'2026-11-02-archive-evidence',confirm:state.title,revision:state.timetable_revision,mission_revision:state.mission_revision,private_material:pack.private_material});
+}
 await fixture.cmd(0,'joining',id,{open:true});
 for(let i=1;i<=50;i++)await fixture.cmd(i,'join');
 await fixture.cmd(0,'assign_staff',id,{name:'Person 51',groups:[(await fixture.snap(0,id)).groups[0].id]});

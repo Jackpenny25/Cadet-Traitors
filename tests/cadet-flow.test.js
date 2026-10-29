@@ -62,7 +62,7 @@ test('blocked controls explain concrete recovery steps without exposing organise
  const error=new Error('Check this opportunity, phase and group eligibility.');
  const state={organiser:true,roles_released:true,groups:[{id:'g',name:'Phantom Flight',phase:'Mission',mission:0,banishments:0}],timetable:[{id:'murder1',action:'open_murder',slot:0}]};
  assert.match(actionableError(error,'start_task',{row:'murder1'},state),/complete the first round table.*close voting and reveal/i);
- assert.match(actionableError(error,'open_murder',{slot:1},state),/start The Vault/i);
+ assert.match(actionableError(error,'open_murder',{slot:1},state),/start The Evidence Room/i);
  assert.match(actionableError(error,'open_murder',{slot:1},{...state,roles_released:false}),/release the private envelopes/i);
  const voting={...state,groups:[{...state.groups[0],ballot:{status:'tie',runoff:false}}]};
  assert.match(actionableError(error,'open_murder',{slot:0},voting),/Start tied runoff/);

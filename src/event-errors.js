@@ -20,7 +20,7 @@ export function actionableError(error,cmd,args={},state){
     return prefix+'reveal the pending ballot outcome before starting the next stage.';
    }
    if(cmd==='open_murder'&&Number(args.slot)===0&&g.banishments<1)return prefix+'complete the first round table: start discussion, open voting, close voting and reveal the outcome. Then open the first murder.';
-   if(cmd==='open_murder'&&Number(args.slot)===1&&g.mission!==1)return prefix+'start The Vault mission before opening the second murder opportunity.';
+   if(cmd==='open_murder'&&Number(args.slot)===1&&g.mission!==1)return prefix+'start The Evidence Room: Case investigation mission before opening the second murder opportunity.';
    if(g.phase==='Discussion')return prefix+'discussion is already running. Open voting when everyone is ready.';
   }
  }

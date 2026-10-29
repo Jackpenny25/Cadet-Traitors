@@ -16,6 +16,6 @@ export function lateAdvice(timetable,date,now=Date.now()){
  const localDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
  if(localDate!==date)return 'Start each activity when your groups are ready.';
  const [h,m]=localTime.split(':').map(Number);const remaining=Math.max(0,21*60+10-(h*60+m));
- const shortenable=timetable.filter(r=>/Archive|Vault|Transmission/i.test(r.label)&&r.minutes>10&&r.time>=localTime);
+ const shortenable=timetable.filter(r=>/Archive|Evidence Room/i.test(r.label)&&r.minutes>10&&r.time>=localTime);
  return `${remaining} minutes remain until the 21:10 results deadline. ${shortenable.length?'Consider shortening '+shortenable[0].label+' by five minutes.':'Keep final reveals, clear up and parade protected.'} Nothing is skipped automatically.`;
 }
