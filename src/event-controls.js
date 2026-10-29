@@ -1,6 +1,7 @@
 // These checks are calculated by the same server code that accepts the command.
 export function controlAvailability(state,cmd,args={}){
  if(!state?.organiser)return {allowed:true,reason:''};
+ if(state.ended)return {allowed:false,reason:'This event has finished. Open Event home and create a separate rehearsal to practise further.'};
  if(cmd==='start_task'){
   const row=state.timetable.find(r=>r.id===args.row);if(!row)return {allowed:false,reason:'Reload the timetable to find this activity.'};
   cmd=row.action;args={...args,mission:row.mission,slot:row.slot,...(row.action==='discussion'?{round:Number(row.id.match(/^round([1-3])$/)?.[1])||undefined}:{})};

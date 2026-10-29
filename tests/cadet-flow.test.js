@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {eventDatabase} from './runtime-helpers.js';
-import {cadetSummary,cadetMission,currentTask,eventUpdates,controlIsCurrent} from '../src/event-presentation.js';
+import {cadetSummary,cadetMission,currentTask,eventUpdates,controlIsCurrent,ballotProgress} from '../src/event-presentation.js';
 import {clock,timeLeft} from '../src/event-ui.js';
 import {sortSchedule} from '../src/event-theatre.js';
 import {actionableError} from '../src/event-errors.js';
@@ -87,4 +87,7 @@ test('cadet presentation only includes the current team and active mission; cloc
  assert.doesNotMatch(cadetSummary({...results,ended:false},Date.now()),/Traitors win/);
  assert.doesNotMatch(cadetSummary(results,Date.now()),/Other team/);
  assert.equal(currentTask({...results.groups[0],active_task:'archive'},[{id:'archive',action:'mission'},{id:'results',action:'finish'}]),'results');
+ assert.equal(ballotProgress({ballot:{status:'open'},votes_received:6,eligible:6}),'6/6 votes received');
+ assert.equal(ballotProgress({ballot:{status:'resolved'},votes_received:6,eligible:5}),'6 votes received');
+ assert.equal(ballotProgress({ballot:null,votes_received:0,active:6}),'');
 });

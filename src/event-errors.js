@@ -16,6 +16,7 @@ export function actionableError(error,cmd,args={},state){
  if(cmd==='apply_mission_plan'&&/Confirm the selected event title/.test(message))return `Type the exact selected event title${state?.title?': '+state.title:''} in the confirmation field, then apply the plan again. Your private stage fields have been kept.`;
  if(/Check the submitted values/i.test(message))return 'Some fields are missing or invalid. Check the highlighted fields, enter a valid date and whole numbers within the limits, then try again.';
  if(!state?.organiser)return message;
+ if(/The event has (finished|ended)/i.test(message))return 'This event has finished. Open Event home and create a separate rehearsal to practise further. The completed event stays available for viewing and private export.';
  if(cmd==='proxy_vote'&&/eligible active player.*self voting/.test(message)){
   if(args.voter===args.target)return 'A player cannot vote for themselves. Choose a different active player in Vote target, keep the reason, then record the manual vote again.';
   const voter=state.players?.find(p=>p.id===args.voter),target=state.players?.find(p=>p.id===args.target);

@@ -44,6 +44,13 @@ test('group guidance distinguishes the next actions rather than old ballot statu
  assert.equal(groupsNeedDifferentSteps([{...group,ballot:{status:'resolved'}},{...group,ballot:{status:'skipped'}}]),false);
  assert.equal(groupsNeedDifferentSteps([group,{...group,next_step:{next:'publish'}}]),true);
 });
+
+test('finished events disable stage controls even where no individual check is supplied',()=>{
+ const ended={organiser:true,ended:true,groups:[]};
+ assert.equal(controlAvailability(ended,'finish').allowed,false);
+ assert.equal(controlAvailability(ended,'mission',{mission:0}).allowed,false);
+ assert.match(controlAvailability(ended,'finish').reason,/separate rehearsal/);
+});
 test('state-aware controls prevent repeat rounds, explain empty ballots, keep batches atomic and preserve already-running groups',async()=>{
  const t=await eventDatabase(3);
  try{
