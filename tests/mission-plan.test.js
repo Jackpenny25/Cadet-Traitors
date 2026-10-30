@@ -92,6 +92,11 @@ test('stage payloads protect notes and future evidence; scores replace safely wi
   assert.match(missionCards(s,score.group),/value="125"/);assert.match(missionCards(s,score.group),/replaces the saved total/);
   await t.cmd(0,'score',id,{...score,mission:2,points:100});assert.equal((await t.snap(0,id)).groups.find(g=>g.id===score.group).score,225);
   await t.cmd(0,'permissions',id,{permissions:[]});await assert.rejects(()=>t.cmd(25,'score',id,score),/permitted/);
+  const readOnlyCards=missionCards(await t.snap(25,id),score.group);
+  assert.match(readOnlyCards,/<fieldset class="score-fields stack" disabled>/);
+  assert.match(readOnlyCards,/type="submit" disabled>Save stage total/);
+  assert.match(readOnlyCards,/Ask the main host to enable the score permission in Setup/);
+  assert.doesNotMatch(missionCards(await t.snap(0,id),score.group),/<fieldset class="score-fields stack" disabled>/);
   const first=s.missions[0];await t.cmd(0,'edit_mission',id,{...first,mission:0,mission_revision:s.mission_revision,answer:'Updated private marker'});
   await assert.rejects(()=>t.cmd(0,'edit_mission',id,{...first,mission:0,mission_revision:s.mission_revision}),/mission cards changed/);
   assert.equal((await t.snap(1,id)).missions[0].answer,undefined);
