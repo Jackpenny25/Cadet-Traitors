@@ -9,7 +9,7 @@ export function lobbySnapshot(value){
 }
 export function eventSnapshot(value){
  if(!object(value)||typeof value.id!=='string'||typeof value.host!=='boolean'||typeof value.organiser!=='boolean'||!Number.isFinite(Date.parse(value.server_now))||!arrays(value,['groups','players','missions','timetable','scores','reveals','windows','messages','helps']))throw mismatch();
- if(!value.groups.length||value.groups.some(g=>!object(g)||typeof g.id!=='string'||typeof g.phase!=='string'||typeof g.paused!=='boolean'||!Number.isFinite(g.remaining)))throw mismatch();
+ if(!value.groups.length||value.groups.some(g=>!object(g)||typeof g.id!=='string'||typeof g.phase!=='string'))throw mismatch();
  if(value.organiser&&(!arrays(value,['nco_permissions','audit'])||value.host&&!Array.isArray(value.staff)))throw mismatch();
  if(!value.organiser&&(!object(value.me)||!Array.isArray(value.me.shields)))throw mismatch();
  value.groups=orderGroups(value.groups);

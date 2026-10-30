@@ -1,6 +1,6 @@
 import {client,rpc,supabaseConfig,download} from './event-api.js';
 import {TurnstileGate,createProtectedSession} from './bot-protection.js';
-import {esc,btn,field,text,check,select,form,panel,clock,timeLeft,lateAdvice} from './event-ui.js';
+import {esc,btn,field,text,check,select,form,panel} from './event-ui.js';
 import {lobbySnapshot,eventSnapshot} from './event-contract.js';
 import {flightNames,crest,roleEnvelope,sortSchedule} from './event-theatre.js';
 import {hauntedProps} from './haunted-art.js';
@@ -19,7 +19,7 @@ const app=document.getElementById('app');
 const controlNotes=installControlNotes();
 const notifications=installNotifications();
 let session=null,lobby=null,event=null,eid=null,page='overview',target='',busy=false,confirming=false,notice='',epoch=0,pending=null;
-let synced=0,serverOffset=0,roleOpen=false,holdTimer=null,sound=false,previousExpired=new Set(),draft=null,wizardStep=0;
+let synced=0,serverOffset=0,roleOpen=false,holdTimer=null,draft=null,wizardStep=0;
 let renderedFingerprint='',interactionAt=0;
 let timetableDraft=null,timetableRevision=null;
 let timetableRenderedRows=[],timetableRenderedRevision=null;
@@ -50,7 +50,7 @@ function groupGuidance(){
  }).join('')}</div></section>`;
 }
 function controlHelp(cmd,args={}){return cmd==='start_task'?taskHelp(event?.timetable.find(r=>r.id===args.row),event?.missions):cmd==='mission'?missionHelp(event?.missions.find(m=>m.idx===Number(args.mission))):commandHelp(cmd,args);}
-const can=cmd=>event?.host||event?.nco_permissions?.includes(['pause','resume','extend'].includes(cmd)?'timer':cmd);
+const can=cmd=>event?.host||event?.nco_permissions?.includes(cmd);
 const empty=p=>`<p class="muted">${esc(p)}</p>`;
 function authScreen(){
  const name=field('name','Name or callsign','text','','required maxlength="30" autocomplete="username"');
@@ -72,15 +72,15 @@ function lobbyScreen(){
 function createForm(practice){return form('create',field('title','Event name','text',practice?'NCO rehearsal':'2427: Trust No One','required maxlength="80"')+field('date','Event date','date','','required')+field('groups','Number of groups','number',4,'readonly')+field('size','Players per group','number',13,'required min="2" max="25"')+field('traitors','Traitors per group','number',2,'required min="1" max="5"'),practice?'Create rehearsal':'Create live event',{practice});}
 function groupCard(g){
  const mission=event.missions.find(m=>m.idx===g.mission);
- return panel(g.name,`<div class="group-summary"><span class="pill">${esc(g.phase)}</span><span class="clock" data-clock="${g.id}">${clock(timeLeft(g,Date.now()+serverOffset))}</span></div><p>${g.active} active · ${g.score} mission points</p>${event.organiser&&g.ballot?`<p>${ballotProgress(g)}${g.done?' · Deduction complete':''}</p>`:''}<p>${g.phase==='Mission'?esc(mission?.title):g.planning?'Check your device. Quiet planning time for everyone.':g.paused?'Timer paused.':'Follow your NCO’s instructions.'}</p>${g.winner?`<h3>${esc(g.winner)} win</h3>`:''}`);
+ return panel(g.name,`<div class="group-summary"><span class="pill">${esc(g.phase)}</span></div><p>${g.active} active · ${g.score} mission points</p>${event.organiser&&g.ballot?`<p>${ballotProgress(g)}${g.done?' · Deduction complete':''}</p>`:''}<p>${g.phase==='Mission'?esc(mission?.title):g.planning?'Check your device. Quiet planning time for everyone.':'Follow your NCO’s instructions.'}</p>${g.winner?`<h3>${esc(g.winner)} win</h3>`:''}`);
 }
 function overview(){
- let body=event.organiser?`<div class="card-grid">${event.groups.map(groupCard).join('')}</div>`:cadetSummary(event,Date.now()+serverOffset);
+ let body=event.organiser?`<div class="card-grid">${event.groups.map(groupCard).join('')}</div>`:cadetSummary(event);
  if(event.announcement)body=panel('Announcement',`<p>${esc(event.announcement)}</p>`)+body;
  if(event.host&&!event.practice&&!event.is_live)body+=panel('Live event selection',`<p>This event is preserved but is not the single live event.</p>${btn('set_live','Use this as the live event')}`);
  if(event.organiser){
   body+=panel('Live controls',select('control-group','Control groups',[...(event.host?[{id:'',name:'All groups'}]:[]),...event.groups],target,'id="control-group"')+
-   `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${controls('open_murder','Open second murder',{slot:1},can('open_murder'))}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('pause','Pause',{},can('pause'))}${controls('resume','Resume',{},can('resume'))}${controls('extend','Add one minute',{seconds:60},can('extend'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition. An expired timer never reveals a result automatically.</p>`);
+   `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${controls('open_murder','Open second murder',{slot:1},can('open_murder'))}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition.</p>`);
   if(event.host){body+=mainHostPanel();if(event.practice)body+=rehearsalTools();}
   const reveals=event.ended?[]:event.reveals.filter(r=>!r.published||r.kind==='Banished'&&!r.role_revealed);
   body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id},can('publish')?'':'disabled'):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id},can('reveal_role')?'':'disabled')}</div>`).join(''):empty('No outcomes waiting for publication.'));
@@ -88,7 +88,6 @@ function overview(){
   if(event.host){const open=event.windows.filter(w=>w.mode==='standard'&&w.status==='open');if(open.length)body+=panel('Manual murder decision',`<p>Use only when recording a decision taken off the website. A reason is required and the outcome stays private until publication.</p>${open.map(w=>form('lock_murder',`<h3>${esc(groupLabel(w.group_id))}</h3>`+select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})))+field('reason','Why is a manual decision needed?','text','','required maxlength="200"'),'Record private decision',{group:w.group_id,opportunity:w.id})).join('')}`);}
   if(can('open_murder'))body+=panel('Designated murder decision maker',event.groups.map(g=>form('open_murder',`<h3>${esc(g.name)}</h3>`+select('slot','Opportunity',[{id:0,name:'First murder'},{id:1,name:'Second murder'}])+select('decider','Designated active Traitor',event.players.filter(p=>p.group===g.id&&p.status==='Active'&&p.role==='Traitor').map(p=>({id:p.id,name:numberName(p)}))),'Open this opportunity',{group:g.id},event.ended?'disabled':'')).join(''));
   if(can('objective'))body+=panel('Supervised private communication',event.groups.map(g=>`<details><summary>${esc(g.name)}</summary>${form('organiser_message',text('text','Instruction to active Traitors','',240),'Send privately',{group:g.id},event.ended?'disabled':'')}${event.messages.filter(m=>m.group_id===g.id).map(m=>`<p>${esc(m.sender)}: ${esc(m.body)}</p>`).join('')}</details>`).join(''));
-  body+=panel('Running late?',`<p>${esc(lateAdvice(event.timetable,event.date))}</p>`);
  }else body+=playerActions();
  return body;
 }
@@ -99,7 +98,7 @@ function mainHostPanel(){
 }
 function rehearsalTools(){
  const ready=roleReadiness(event),locked=ready.hasPrepared||event.roles_released||event.ended;
- const tests=event.players.filter(p=>p.test_player);const fillTarget=Math.min(50,event.groups.reduce((n,g)=>n+g.capacity,0));const openBallot=event.groups.some(g=>g.ballot?.status==='open'&&!g.paused);
+ const tests=event.players.filter(p=>p.test_player);const fillTarget=Math.min(50,event.groups.reduce((n,g)=>n+g.capacity,0));const openBallot=event.groups.some(g=>g.ballot?.status==='open');
  return panel('Rehearsal test players',`<p>Practise on your own with test players in the four groups. They have no login or PIN. Real player accounts and the live event are kept separate.</p>${locked?`<p class="schedule-warning">${event.roles_released?'Roles are released, so the roster is locked. You can still preview test files and generate test votes during open ballots.':'Reset unreleased roles before adding test players. Your existing players stay in their groups.'}</p>`:''}<div class="btns">${btn('add_test_players','Fill groups for a role test',{minimum:true},locked||ready.groups.every(g=>g.needed===0)?'disabled':'')}${btn('add_test_players','Fill rehearsal to '+fillTarget+' players',{target_total:fillTarget},locked||event.players.length>=fillTarget?'disabled':'')}${!event.roles_released&&ready.hasPrepared?btn('reset_roles','Reset unreleased roles',{confirm:'RESET UNRELEASED ROLES'}):''}${controls('test_votes','Generate test votes',{},tests.length>0&&openBallot&&!event.ended)}</div>${!locked?`<details><summary>Add a specific number or one named test player</summary>${form('add_test_players',field('count','Number of test players','number',1,'required min="1" max="100"')+field('name','Name for a single test player (optional)','text','','maxlength="30"'),'Add test players')}</details>`:''}<p>${tests.length} test players · ${event.players.length-tests.length} real players. Prepare and release roles using Main host, then open Players to preview each test file. For voting, start discussion, open voting, generate test votes, close voting and reveal the outcome.</p>`,'rehearsal-panel');
 }
 function administrationScreen(){
@@ -152,7 +151,7 @@ function setupScreen(){
   body+=panel(`Setup · Step ${wizardStep+1} of 3`,form('wizard',step,wizardStep===2?'Save event setup':'Next')+(wizardStep?btn('wizard_back','Previous step'):''));
  }else body+=empty('Group sizes and role settings are locked once players join. Missions and timetable remain editable.');
  body+=panel('Assign group NCOs',form('assign_staff',field('name','Registered organiser account name','text','','required maxlength="30"')+event.groups.map(g=>check('group_'+g.id,g.name)).join(''),'Save assignments')+event.staff.map(s=>`<p>${esc(s.name)} · ${esc(groupLabel(s.group))}</p>`).join(''));
- const perms=['timer','score','proxy_vote','confirm_objective','recover','open_vote','close_vote','runoff','open_murder','lock_murder','planning','publish','reveal_role','mission','discussion','shield','objective'];
+ const perms=['score','proxy_vote','confirm_objective','recover','open_vote','close_vote','runoff','open_murder','lock_murder','planning','publish','reveal_role','mission','discussion','shield','objective'];
  body+=panel('Permitted NCO actions',form('permissions',perms.map(p=>check(p,p.replaceAll('_',' '),event.nco_permissions.includes(p))).join(''),'Save permissions'));
  body+=panel('Event administration',`<p>Open Administration for rehearsal test players, private recovery records, projector links, role resets and event deletion.</p>${btn('page','Open Administration',{page:'admin'})}`);
  return body;
@@ -213,7 +212,7 @@ function render(){
  controlNotes.hide();
  if(event&&!event.organiser)page='overview';
  const screen=!lobby?authScreen():!event?lobbyScreen():page==='players'?playersScreen():page==='missions'?missionsScreen():page==='admin'?administrationScreen():page==='setup'?setupScreen():page==='timetable'?timetableScreen():page==='slips'?slipsScreen():page==='log'?logScreen():overview();
- app.innerHTML=`<header class="event-header"><a class="event-brand" href="index.html">${crest}<span>Trust No One<small>2427 Biggin Hill Air Cadets</small></span></a><div class="btns">${event?.practice?'<span class="pill">Separate rehearsal</span>':''}${lobby?btn('logout','Sign out'):''}</div></header>${event?`<nav class="event-nav" aria-label="Event pages">${[['overview',event.organiser?'Control room':'My game'],...(event.organiser?[['players','Players'],['missions','Missions'],['timetable','Timetable']]:[]),...(event.host?[['admin','Administration'],['setup','Setup']]:[]),...(event.organiser?[['log','Event log']]:[])].map(([p,label])=>btn('page',label,{page:p},p===page?'aria-current="page"':'')).join('')}${event.host?`<a href="projector.html#${esc(event.display_token)}" target="_blank" rel="noopener">Projector ↗</a>`:''}${btn('back','Event home')}</nav>`:''}<main class="workspace event-workspace">${hauntedProps}<div class="connection-row ${event&&!event.organiser?'cadet-connection':''}"><p id="connection" role="status">${busy?'Saving to the event…':synced?'Synced '+new Date(synced).toLocaleTimeString():'Name and PIN only. No email needed.'}</p>${event?`<label class="check"><input id="sound-toggle" type="checkbox" ${sound?'checked':''}>Timer sound</label>`:''}</div><p class="sr-only ${noticeError?'form-error':'form-success'}" id="notice" role="${noticeError?'alert':'status'}" ${notice?'':'hidden'}>${esc(notice)}</p>${event?`<h1 class="event-title">${esc(event.title)}</h1>`:''}${screen}<footer class="event-footer"><span>2427 Biggin Hill Air Cadets &middot; Trust No One</span>${event?.practice?'<span>Rehearsal data is separate from the live event.</span>':''}</footer></main>`;
+ app.innerHTML=`<header class="event-header"><a class="event-brand" href="index.html">${crest}<span>Trust No One<small>2427 Biggin Hill Air Cadets</small></span></a><div class="btns">${event?.practice?'<span class="pill">Separate rehearsal</span>':''}${lobby?btn('logout','Sign out'):''}</div></header>${event?`<nav class="event-nav" aria-label="Event pages">${[['overview',event.organiser?'Control room':'My game'],...(event.organiser?[['players','Players'],['missions','Missions'],['timetable','Timetable']]:[]),...(event.host?[['admin','Administration'],['setup','Setup']]:[]),...(event.organiser?[['log','Event log']]:[])].map(([p,label])=>btn('page',label,{page:p},p===page?'aria-current="page"':'')).join('')}${event.host?`<a href="projector.html#${esc(event.display_token)}" target="_blank" rel="noopener">Projector ↗</a>`:''}${btn('back','Event home')}</nav>`:''}<main class="workspace event-workspace">${hauntedProps}<div class="connection-row ${event&&!event.organiser?'cadet-connection':''}"><p id="connection" role="status">${busy?'Saving to the event…':synced?'Synced '+new Date(synced).toLocaleTimeString():'Name and PIN only. No email needed.'}</p></div><p class="sr-only ${noticeError?'form-error':'form-success'}" id="notice" role="${noticeError?'alert':'status'}" ${notice?'':'hidden'}>${esc(notice)}</p>${event?`<h1 class="event-title">${esc(event.title)}</h1>`:''}${screen}<footer class="event-footer"><span>2427 Biggin Hill Air Cadets &middot; Trust No One</span>${event?.practice?'<span>Rehearsal data is separate from the live event.</span>':''}</footer></main>`;
  app.querySelectorAll('button').forEach(b=>{if(busy)b.disabled=true;});
  if(!lobby&&!session&&supabaseConfig.turnstileEnabled){const box=document.createElement('section');box.innerHTML='<div class="turnstile-widget"></div><p role="status"></p>';document.querySelector('.card-grid').before(box);void gate.mount(box);}
  if(rolePreview&&event?.host&&event.practice&&event.roles_released){const p=event.players.find(p=>p.id===rolePreview&&p.test_player);if(p)app.insertAdjacentHTML('beforeend',roleEnvelope(p,true,'reveal',{preview:true}));}
@@ -313,7 +312,7 @@ document.addEventListener('change',async e=>{
   f.elements.points.value=saved?.points??0;f.elements.completed.checked=Boolean(saved?.completed);f.elements.reason.value=saved?.reason||'';return;
  }
 });
-document.addEventListener('change',e=>{if(e.target.closest('[data-form="timetable"]')&&e.target.type==='time'){captureTimetable();timetableDraft=sortSchedule(timetableDraft);render();return;}if(e.target.id==='control-group'){target=e.target.value;render();}if(e.target.id==='sound-toggle')sound=e.target.checked;});
+document.addEventListener('change',e=>{if(e.target.closest('[data-form="timetable"]')&&e.target.type==='time'){captureTimetable();timetableDraft=sortSchedule(timetableDraft);render();return;}if(e.target.id==='control-group'){target=e.target.value;render();}});
 function beginHold(e){if(!e.target.closest('#role-hold')||!event?.roles_released)return;clearTimeout(holdTimer);e.target.closest('#role-hold').classList.add('seal-charging');holdTimer=setTimeout(()=>{roleOpen='reveal';render();document.getElementById('seal-role')?.focus();},900);}
 function endHold(){clearTimeout(holdTimer);document.getElementById('role-hold')?.classList.remove('seal-charging');}
 document.addEventListener('pointerdown',e=>{interactionAt=Date.now();beginHold(e);});document.addEventListener('pointerup',endHold);document.addEventListener('pointercancel',endHold);
@@ -332,9 +331,3 @@ async function refreshNow(){
 }
 try{const {data,error}=await client.auth.getSession();if(error)throw error;session=data.session;if(session){await sync(false);if(lobby.live&&(lobby.live.joined||lobby.live.organiser)&&!practiceId){eid=lobby.live.id;await sync(false);}}}catch(error){if(error.message!=='Sign in first.'){noticeError=true;notice=error.message;}}render();if(notice)notifications.show('Sign in',notice,noticeError);
 setInterval(()=>{if(lobby&&!document.hidden)refreshNow();},2000);
-setInterval(()=>{
- if(!event)return;const expired=new Set();
- document.querySelectorAll('[data-clock]').forEach(node=>{const g=groupBy(node.dataset.clock);if(!g)return;const left=timeLeft(g,Date.now()+serverOffset);const label=clock(left);if(node.textContent!==label)node.textContent=label;if(!g.paused&&left===0)expired.add(g.id);});
- if(sound&&[...expired].some(id=>!previousExpired.has(id))){try{const ctx=new AudioContext();const osc=ctx.createOscillator();const gain=ctx.createGain();gain.gain.value=.04;osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.2);osc.onended=()=>ctx.close();}catch{}}
- previousExpired=expired;
-},1000);

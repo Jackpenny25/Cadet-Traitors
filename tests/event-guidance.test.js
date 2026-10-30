@@ -10,7 +10,7 @@ const guidance='supabase/migrations/20261023211459_guard_event_admin_actions.sql
 async function currentDatabase(n=4){const t=await eventDatabase(n);await t.db.exec(await readFile(schedule,'utf8'));await t.db.exec(await readFile(guidance,'utf8'));return t;}
 
 test('control notes explain the saved activity and never include private mission answers',()=>{
- for(const cmd of ['discussion','open_vote','close_vote','runoff','random_draw','skip_ballot','reopen_ballot','planning','open_murder','lock_murder','pause','resume','extend','finale','joining','prepare_roles','release_roles','finish','announce','reset_roles','rotate_board','export','delete','add_test_players','test_votes'])assert.ok(commandHelp(cmd).length>40,cmd);
+ for(const cmd of ['discussion','open_vote','close_vote','runoff','random_draw','skip_ballot','reopen_ballot','planning','open_murder','lock_murder','finale','joining','prepare_roles','release_roles','finish','announce','reset_roles','rotate_board','export','delete','add_test_players','test_votes'])assert.ok(commandHelp(cmd).length>40,cmd);
  const mission={idx:0,title:'Changed archive',instructions:'Find the paper clues.',equipment:'Envelope and padlock',minutes:17,answer:'PRIVATE ANSWER',notes:'PRIVATE STAFF NOTES'};
  const description=taskHelp({id:'archive',action:'mission',mission:0,label:'Custom task',minutes:12},[mission]);
  assert.match(description,/Changed archive/);assert.match(description,/paper clues/);assert.match(description,/12 minutes/);assert.ok(!description.includes('PRIVATE'));

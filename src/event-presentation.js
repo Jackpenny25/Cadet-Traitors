@@ -1,4 +1,4 @@
-import {esc,panel,clock,timeLeft} from './event-ui.js';
+import {esc,panel} from './event-ui.js';
 
 export function ownGroup(state){return state?.groups.find(g=>g.id===state.me?.group);}
 export function groupsNeedDifferentSteps(groups){
@@ -11,9 +11,9 @@ export function ballotProgress(group){
  return `${received}${group.ballot.status==='open'?'/'+(group.eligible??group.active):''} votes received`;
 }
 export function currentMission(state){const g=ownGroup(state);return g?.phase==='Mission'?state.missions.find(m=>m.idx===g.mission):null;}
-export function cadetSummary(state,now){
+export function cadetSummary(state){
  const g=ownGroup(state);if(!g)return '';
- return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${esc(g.name)}</h2><p>${esc(g.phase)}${g.paused?' · Paused':''}</p>${state.ended&&g.winner?`<h3>${esc(g.winner)} win</h3>`:''}</div><span class="clock" data-clock="${esc(g.id)}">${clock(timeLeft(g,now))}</span></section>`;
+ return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${esc(g.name)}</h2><p>${esc(g.phase)}</p>${state.ended&&g.winner?`<h3>${esc(g.winner)} win</h3>`:''}</div></section>`;
 }
 export function cadetMission(state){
  const m=currentMission(state);if(!m)return '';

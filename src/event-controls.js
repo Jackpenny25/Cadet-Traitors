@@ -18,4 +18,4 @@ export function controlAvailability(state,cmd,args={}){
  return {allowed:!blocked.length&&ready.length>0,reason:(blocked.length?blocked:ready.length?completed:checks).map(({group,check})=>group.name+': '+check.reason).join('\n'),ready:ready.map(({group})=>group.id),completed:completed.map(({group})=>group.id)};
 }
 
-export const nextLabels={mission:'Begin mission',discussion:'Start discussion',open_vote:'Open voting',close_vote:'Close voting',runoff:'Start tied runoff',random_draw:'Draw after tied runoff',reopen_ballot:'Reopen empty ballot',skip_ballot:'Skip empty ballot',publish:'Reveal outcome',open_murder:'Open murder opportunity',lock_murder:'Lock standard choices',page:'Open private controls',finale:'Start finale',resume:'Resume timer'};
+export const nextLabels={mission:'Begin mission',discussion:'Start discussion',open_vote:'Open voting',close_vote:'Close voting',runoff:'Start tied runoff',random_draw:'Draw after tied runoff',reopen_ballot:'Reopen empty ballot',skip_ballot:'Skip empty ballot',publish:'Reveal outcome',open_murder:'Open murder opportunity',lock_murder:'Lock standard choices',page:'Open private controls',finale:'Start finale'};

@@ -1,7 +1,7 @@
 // Descriptions stay separate from command arguments and never contain private mission answers.
 export function missionHelp(mission){
  if(!mission)return 'Start the selected physical mission for the selected groups. Release roles first and resolve the previous ballot or murder opportunity.';
- return `${mission.title}. ${mission.instructions||'Follow the mission card and the organiser’s briefing.'} ${mission.equipment?'Equipment: '+mission.equipment+' ':''}Starting changes the selected groups to this mission and starts its ${mission.minutes} minute countdown. Record points separately in Missions.`;
+ return `${mission.title}. ${mission.instructions||'Follow the mission card and the organiser’s briefing.'} ${mission.equipment?'Equipment: '+mission.equipment+' ':''}Starting changes the selected groups to this mission. Record points separately in Missions.`;
 }
 
 export function commandHelp(cmd,args={}){
@@ -11,20 +11,17 @@ export function commandHelp(cmd,args={}){
   prepare_roles:'Randomly assign the configured number of Traitors in each group and close joining. Every group needs more players than Traitors. Players cannot see the roles until you release their files.',
   release_roles:'Let each player privately open their Faithful or Traitor file. Prepare and check all roles first. Released roles cannot be reassigned or rerolled.',
   mission:missionHelp(),
-  discussion:'Start a five minute round table for the selected groups. Players discuss suspicions. This does not open voting; use Open voting when discussion is finished.',
-  open_vote:'Start a two minute ballot. Active players choose another active player in their own group and may change their vote until you close it. Live vote totals stay private.',
+  discussion:'Start a round table for the selected groups. Players discuss suspicions. This does not open voting; use Open voting when discussion is finished.',
+  open_vote:'Open a ballot. Active players choose another active player in their own group and may change their vote until you close it. Live vote totals stay private.',
   close_vote:'Stop accepting votes and calculate the result privately. Missing votes count as abstentions. A tie needs a runoff; the name is not public until you reveal the outcome.',
-  runoff:'Open a fresh one minute ballot between the tied candidates. Only one runoff is allowed. If that also ties, the main host can use the explicit random draw.',
+  runoff:'Open a fresh ballot between the tied candidates. Only one runoff is allowed. If that also ties, the main host can use the explicit random draw.',
   random_draw:'Randomly select from the candidates tied after the runoff. This is a main host action. The result stays private until you publish it.',
   skip_ballot:'Deliberately skip a ballot that received no votes. Nobody is banished. This is only available to the main host.',
   reopen_ballot:'Reopen a ballot that received no votes so players can submit again. This is only available to the main host.',
-  planning:'Open two minutes of private planning. Active Traitors in their group can coordinate; everyone else sees a neutral device prompt. Authorised organisers can supervise the messages.',
+  planning:'Open private planning until the next stage. Active Traitors in their group can coordinate; everyone else sees a neutral device prompt. Authorised organisers can supervise the messages.',
   open_murder:`Open murder opportunity ${Number(args.slot)===1?'two':'one'}. Standard mode lets active Traitors select a Faithful; supervised mode needs a private physical objective and NCO verification. Setup chooses the mode. Opening never publishes a victim.`,
   lock_murder:'Close the standard target choices and record the outcome privately. Disagreements use the designated deciding Traitor. No valid choice means no murder. Publish the outcome separately.',
-  pause:'Freeze the selected groups’ countdowns and any open murder deadline. Other groups continue unless All groups is selected.',
-  resume:'Restart a paused countdown using its saved remaining time. Connected devices use the same server deadline.',
-  extend:'Add one minute to the selected groups’ countdowns and any open murder deadline. No result is revealed automatically.',
-  finale:'Start a five minute closing phase for the selected groups. Deduction must be complete and outstanding decisions resolved. This does not reveal the final winners or all roles.',
+  finale:'Start the closing phase for the selected groups. Deduction must be complete and outstanding decisions resolved. This does not reveal the final winners or all roles.',
   finish:'End the event and publicly disclose final group winners and all roles. Finish deduction in every group, close ballots, resolve murder opportunities and publish pending outcomes first. This disclosure cannot be undone.',
   announce:args.text?'Send a neutral “Check your device” announcement to player dashboards. It cannot wake locked phones or send a push notification.':'Replace the announcement on player dashboards with this text. It does not change the phase or publish a private outcome.',
   publish:'Make this outcome public. An eliminated player appears on the projector with a dramatic reveal and a red X. Their hidden role is disclosed separately.',
@@ -63,14 +60,14 @@ export function taskHelp(row,missions=[]){
  const duration=`The scheduled duration is ${row.minutes} minutes.`;
  if(row.action==='mission'){
   const mission=missions.find(m=>m.idx===Number(row.mission));
-  return `${missionHelp(mission)} ${duration} Starting from the timetable uses this scheduled duration.`;
+  return `${missionHelp(mission)} ${duration}`;
  }
  const activities={
-  briefing:'Welcome the cadets, explain the rules, check devices and brief staff. Start begins the selected groups’ activity countdown.',
-  break:'Give everyone a short break and bring the group back together. Start begins the activity countdown. Resolve and publish the second murder separately in the control room.',
-  clearup:'Collect clues and equipment, clear the room and get ready to form up. Start begins the clear up countdown.',
-  parade:'Bring everyone together for final parade and closing instructions. Start begins the parade countdown.',
+  briefing:'Welcome the cadets, explain the rules, check devices and brief staff. Start marks this activity for the selected groups.',
+  break:'Give everyone a short break and bring the group back together. Start marks this activity for the selected groups. Resolve and publish the second murder separately in the control room.',
+  clearup:'Collect clues and equipment, clear the room and get ready to form up. Start marks the clear up stage.',
+  parade:'Bring everyone together for final parade and closing instructions. Start marks the parade stage.',
  };
- const description=row.action==='activity'?(activities[row.id]||`Begin “${row.label}” and its countdown for the selected groups. This does not reveal an outcome.`):commandHelp(row.action,{slot:row.slot});
+ const description=row.action==='activity'?(activities[row.id]||`Begin “${row.label}” for the selected groups. This does not reveal an outcome.`):commandHelp(row.action,{slot:row.slot});
  return `${description} ${duration}${row.action==='open_murder'?' The scheduled activity opens the opportunity; lock or verify and publish its outcome separately.':''}`;
 }

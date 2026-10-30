@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {eventDatabase} from './runtime-helpers.js';
 import {cadetSummary,cadetMission,currentTask,eventUpdates,controlIsCurrent,ballotProgress} from '../src/event-presentation.js';
-import {clock,timeLeft} from '../src/event-ui.js';
 import {sortSchedule} from '../src/event-theatre.js';
 import {actionableError} from '../src/event-errors.js';
 import {orderGroups,flightNames} from '../src/group-order.js';
@@ -70,11 +69,10 @@ test('blocked controls explain concrete recovery steps without exposing organise
  assert.match(actionableError(new Error('Failed to fetch'),'mission'),/try the same action again/i);
 });
 
-test('cadet presentation only includes the current team and active mission; clocks and update popups remain stable',()=>{
+test('cadet presentation includes its current team and mission, omits clocks and keeps update popups stable',()=>{
  const state={id:'event',organiser:false,roles_released:true,me:{id:'p',group:'mine',status:'Active'},groups:[{id:'mine',name:'My team',mission:1,phase:'Mission',remaining:0,paused:false,deadline:'2026-01-01T00:00:00Z'},{id:'other',name:'Other team'}],missions:[{idx:0,title:'Future secret',instructions:'Not now'},{idx:1,title:'Current task',instructions:'Solve <clue>'}],messages:[],players:[],reveals:[]};
- assert.doesNotMatch(cadetSummary(state,Date.now()),/Other team|awaiting/i);
+ assert.doesNotMatch(cadetSummary(state,Date.now()),/Other team|awaiting|data-clock|Paused|00:00/i);
  assert.match(cadetMission(state),/Current task/);assert.match(cadetMission(state),/Solve &lt;clue&gt;/);assert.doesNotMatch(cadetMission(state),/Future secret/);
- assert.equal(clock(timeLeft(state.groups[0],Date.now())),'00:00');assert.equal(clock(timeLeft({remaining:0,paused:false,deadline:null})),'00:00');
  assert.deepEqual(eventUpdates(state,{...state,server_now:'later'}),[]);
  const next={...state,announcement:'Check your device',groups:[{...state.groups[0],phase:'Voting',ballot:{id:'b',status:'open'}}]};
  assert.deepEqual(eventUpdates(state,next).map(u=>u.title),['Announcement','Voting is open']);
