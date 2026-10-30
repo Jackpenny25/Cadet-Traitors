@@ -17,7 +17,7 @@ export function cadetSummary(state){
 }
 export function cadetMission(state){
  const m=currentMission(state);if(!m)return '';
- return panel(m.title,`<p>${esc(m.instructions)}</p>${m.equipment?`<p><strong>Equipment:</strong> ${esc(m.equipment)}</p>`:''}${m.minutes?`<p>${m.minutes} minutes · Maximum ${m.max_points} points</p>`:''}<p class="tiny muted">Follow your NCO’s briefing. You can put your phone away during the task.</p>`,'current-mission');
+ return panel(m.title,`<p>${esc(m.instructions)}</p>${m.equipment?`<p><strong>Equipment:</strong> ${esc(m.equipment)}</p>`:''}<p>Maximum ${m.max_points} points</p><p class="tiny muted">Follow your NCO’s briefing. You can put your phone away during the task.</p>`,'current-mission');
 }
 export function controlIsCurrent(g,cmd,args={}){
  if(cmd==='mission')return g.phase==='Mission'&&g.mission===Number(args.mission);

@@ -41,7 +41,7 @@ export function commandHelp(cmd,args={}){
   assign_staff:'Assign a registered organiser account to the checked groups. Their access is limited to those groups and the NCO permissions you choose.',
   permissions:'Choose which actions assigned NCOs can perform in their own groups. The main host retains event administration and account assignment.',
   score:'Save the total points earned so far for this mission, rather than adding a new amount. Record a reason and mark completion when appropriate. Mission points do not decide deduction winners.',
-  edit_mission:'Save this mission’s public briefing, equipment and duration. Marking rules, notes and verified answers are restricted to authorised organisers.',
+  edit_mission:'Save this mission’s public briefing and equipment. Marking rules, notes and verified answers are restricted to authorised organisers.',
   objective:'Privately assign an eligible Faithful and a supervised physical objective. The target stays publicly active unless a verified outcome is later published.',
   confirm_objective:'Record physical verification or rejection of a supervised objective with a reason. A Traitor’s report alone is not proof. The result stays private until publication.',
   organiser_message:'Send a private instruction to active Traitors in this group. Assigned authorised organisers can read the conversation.',
@@ -57,10 +57,10 @@ export function commandHelp(cmd,args={}){
 
 export function taskHelp(row,missions=[]){
  if(!row)return 'Reload the timetable to see this activity’s details.';
- const duration=`The scheduled duration is ${row.minutes} minutes.`;
+
  if(row.action==='mission'){
   const mission=missions.find(m=>m.idx===Number(row.mission));
-  return `${missionHelp(mission)} ${duration}`;
+  return `${missionHelp(mission)}`;
  }
  const activities={
   briefing:'Welcome the cadets, explain the rules, check devices and brief staff. Start marks this activity for the selected groups.',
@@ -69,5 +69,5 @@ export function taskHelp(row,missions=[]){
   parade:'Bring everyone together for final parade and closing instructions. Start marks the parade stage.',
  };
  const description=row.action==='activity'?(activities[row.id]||`Begin “${row.label}” for the selected groups. This does not reveal an outcome.`):commandHelp(row.action,{slot:row.slot});
- return `${description} ${duration}${row.action==='open_murder'?' The scheduled activity opens the opportunity; lock or verify and publish its outcome separately.':''}`;
+ return `${description}${row.action==='open_murder'?' The scheduled activity opens the opportunity; lock or verify and publish its outcome separately.':''}`;
 }

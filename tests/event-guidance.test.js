@@ -13,7 +13,7 @@ test('control notes explain the saved activity and never include private mission
  for(const cmd of ['discussion','open_vote','close_vote','runoff','random_draw','skip_ballot','reopen_ballot','planning','open_murder','lock_murder','finale','joining','prepare_roles','release_roles','finish','announce','reset_roles','rotate_board','export','delete','add_test_players','test_votes'])assert.ok(commandHelp(cmd).length>40,cmd);
  const mission={idx:0,title:'Changed archive',instructions:'Find the paper clues.',equipment:'Envelope and padlock',minutes:17,answer:'PRIVATE ANSWER',notes:'PRIVATE STAFF NOTES'};
  const description=taskHelp({id:'archive',action:'mission',mission:0,label:'Custom task',minutes:12},[mission]);
- assert.match(description,/Changed archive/);assert.match(description,/paper clues/);assert.match(description,/12 minutes/);assert.ok(!description.includes('PRIVATE'));
+ assert.match(description,/Changed archive/);assert.match(description,/paper clues/);assert.doesNotMatch(description,/minute|countdown/);assert.ok(!description.includes('PRIVATE'));
  assert.match(taskHelp({id:'break',action:'activity',minutes:10}),/publish.*separately/);
  assert.match(commandHelp('joining',{open:true}),/Let registered/);assert.match(commandHelp('joining',{open:false}),/Stop new/);
  const html=btn('mission','Start',{},'disabled','A "quote" <script>');assert.match(html,/data-note="A &quot;quote&quot; &lt;script&gt;"/);assert.match(html,/About Start/);assert.match(html,/disabled/);
