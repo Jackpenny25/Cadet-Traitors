@@ -200,4 +200,3 @@ test('an early private approval cannot deadlock round table 2 against its requir
   assert.equal((await t.snap(0,id)).players.find(p=>p.id===victim.id).status,'Murdered');
  }finally{await t.close();}
 });
-

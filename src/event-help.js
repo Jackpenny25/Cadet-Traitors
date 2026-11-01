@@ -6,6 +6,8 @@ export function missionHelp(mission){
 
 export function commandHelp(cmd,args={}){
  const notes={
+  save_task_draft:'Save a private host-only draft for this flight. No player receives it. Copy it into an event after completing setup, then send it separately.',
+  load_task_drafts:'Open your private saved flight tasks. This works before creating an event.',
   plain_save:'Save this flight’s task and evidence requirements privately. Drafts survive refresh and sign out. Saving does not send or notify players.',
   plain_send:'Deliver the saved task only to this flight’s active Traitors. This does not open submissions, close a ballot or change the current stage.',
   plain_open:'Let this flight report completion of its already sent physical task. Voting continues independently. No player is eliminated by submitting.',

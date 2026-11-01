@@ -14,7 +14,7 @@ import {controlAvailability,nextLabels} from './event-controls.js';
 import {missionPlanReview,missionCards,privateMissionPack} from './mission-review.js';
 import {captureFormDrafts,restoreFormDrafts} from './form-drafts.js';
 import {confirmAction} from './event-confirmation.js';
-import {fellowTraitors,plainPlayer,plainHost,plainTimetableControls,prepareEvidence} from './plain-sight.js';
+import {fellowTraitors,plainPlayer,plainHost,plainTimetableControls,prepareEvidence,hostTaskDrafts} from './plain-sight.js';
 import {registerReview} from './register-review.js';
 
 const app=document.getElementById('app');
@@ -26,7 +26,7 @@ let renderedFingerprint='',interactionAt=0;
 let timetableDraft=null,timetableRevision=null;
 let timetableRenderedRows=[],timetableRenderedRevision=null;
 let rolePreview=null,noticeError=false;
-let privatePlanDraft=null;
+let privatePlanDraft=null,taskDraftReport=null;
 let fellowsOpen=false,rosterReport=null,evidencePhotos=[],evidenceTask=null,evidenceViews=[],mediaEpoch=0;
 function clearPrivateMedia(){mediaEpoch++;for(const p of [...evidencePhotos,...evidenceViews])if(p.url)URL.revokeObjectURL(p.url);evidencePhotos=[];evidenceViews=[];evidenceTask=null;document.getElementById('private-evidence-view')?.remove();}
 function sealPrivate(){fellowsOpen=false;clearPrivateMedia();}
@@ -71,7 +71,7 @@ function lobbyScreen(){
  view+='</section>';
  if(practiceId&&/^[\da-f-]{36}$/i.test(practiceId))view+=panel('Separate NCO rehearsal',`<p>This link joins practice, not the live event.</p>${btn('join','Join rehearsal',{practice_event:practiceId})}`);
  if(!practiceId&&lobby.rehearsals?.length)view+=panel('Rehearsals',lobby.rehearsals.map(r=>`<div class="managed-event"><h3>${esc(r.title)}</h3>${r.joined?btn('select','Open my rehearsal',{id:r.id}):btn('join','Join rehearsal',{practice_event:r.id})}</div>`).join(''));
- if(lobby.can_host){view+=btn('roster_refresh','Private register review');view+=`<div class="card-grid">${!live?panel('Create the live event',createForm(false)):''}${panel('Separate rehearsal',createForm(true))}</div>`;}
+ if(lobby.can_host){view+=btn('roster_refresh','Private register review')+btn('load_task_drafts','Private task drafts');view+=`<div class="card-grid">${!live?panel('Create the live event',createForm(false)):''}${panel('Separate rehearsal',createForm(true))}</div>`;}
  if(lobby.events?.length)view+=panel('Your events',lobby.events.map(e=>`<div class="managed-event"><div><h3>${esc(e.title)}</h3><p class="tiny muted">${e.practice?'Separate rehearsal':'Live event'}</p></div><div class="btns">${btn('select','Open dashboard',{id:e.id})}${e.host?btn('select','Manage event',{id:e.id,page:'admin'}):''}</div></div>`).join(''));
  return view;
 }
@@ -223,7 +223,7 @@ function render(){
  gate.clear();
  controlNotes.hide();
  if(event&&!event.organiser)page='overview';
- const screen=!lobby?authScreen():!event?(page==='register'&&lobby.can_host?registerReview(rosterReport):lobbyScreen()):page==='register'&&lobby.can_host?registerReview(rosterReport):page==='plain'&&event.organiser?plainHost(event,target):page==='players'?playersScreen():page==='missions'?missionsScreen():page==='admin'?administrationScreen():page==='setup'?setupScreen():page==='timetable'?timetableScreen():page==='slips'?slipsScreen():page==='log'?logScreen():overview();
+ const screen=!lobby?authScreen():page==='task_drafts'&&lobby.can_host?hostTaskDrafts(taskDraftReport):!event?(page==='register'&&lobby.can_host?registerReview(rosterReport):lobbyScreen()):page==='register'&&lobby.can_host?registerReview(rosterReport):page==='plain'&&event.organiser?plainHost(event,target):page==='players'?playersScreen():page==='missions'?missionsScreen():page==='admin'?administrationScreen():page==='setup'?setupScreen():page==='timetable'?timetableScreen():page==='slips'?slipsScreen():page==='log'?logScreen():overview();
  app.innerHTML=`<header class="event-header"><a class="event-brand" href="index.html">${crest}<span>Trust No One<small>2427 Biggin Hill Air Cadets</small></span></a><div class="btns">${event?.practice?'<span class="pill">Separate rehearsal</span>':''}${lobby?btn('logout','Sign out'):''}</div></header>${event?`<nav class="event-nav" aria-label="Event pages">${[['overview',event.organiser?'Control room':'My game'],...(event.organiser?[['players','Players'],['missions','Missions'],['timetable','Timetable'],['plain','Private tasks']]:[]),...(event.host?[['admin','Administration'],['setup','Setup']]:[]),...(event.organiser?[['log','Event log']]:[])].map(([p,label])=>btn('page',label,{page:p},p===page?'aria-current="page"':'')).join('')}${event.host?`<a href="projector.html#${esc(event.display_token)}" target="_blank" rel="noopener">Projector ↗</a>`:''}${btn('back','Event home')}</nav>`:''}<main class="workspace event-workspace">${hauntedProps}<div class="connection-row ${event&&!event.organiser?'cadet-connection':''}"><p id="connection" role="status">${busy?'Saving to the event…':synced?'Synced '+new Date(synced).toLocaleTimeString():'Name and PIN only. No email needed.'}</p></div><p class="sr-only ${noticeError?'form-error':'form-success'}" id="notice" role="${noticeError?'alert':'status'}" ${notice?'':'hidden'}>${esc(notice)}</p>${event?`<h1 class="event-title">${esc(event.title)}</h1>`:''}${screen}<footer class="event-footer"><span>2427 Biggin Hill Air Cadets &middot; Trust No One</span>${event?.practice?'<span>Rehearsal data is separate from the live event.</span>':''}</footer></main>`;
  app.querySelectorAll('button').forEach(b=>{if(busy)b.disabled=true;});
  if(!lobby&&!session&&supabaseConfig.turnstileEnabled){const box=document.createElement('section');box.innerHTML='<div class="turnstile-widget"></div><p role="status"></p>';document.querySelector('.card-grid').before(box);void gate.mount(box);}
@@ -248,7 +248,7 @@ async function sync(redraw=true){
 }
 const confirmation={plain_send:'Send this saved private task to the active Traitors in the selected flight? Voting and stages stay as they are.',plain_close:'Close completion submissions for this flight? Review and reveal remain separate.',plain_review:'Record this private approval or rejection? No player will be eliminated until the separate public reveal.',roster_activate:'Open registration using the reviewed private register?',publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
 async function perform(cmd,args={}){
- if(['logout','select','back','hide_role'].includes(cmd)){privatePlanDraft=null;sealPrivate();}
+ if(['logout','select','back','hide_role'].includes(cmd)){privatePlanDraft=null;sealPrivate();if(cmd==='logout')taskDraftReport=null;}
  if(busy||confirming)return;
  if(confirmation[cmd]){
   confirming=true;let accepted;
@@ -276,6 +276,10 @@ async function perform(cmd,args={}){
    if(!event?.host)throw new Error('Only the main host can delete this event.');
    if(args.confirm!==event.title)throw new Error('Type the exact event title shown above to confirm deletion.');
    await submitCommand('delete',{confirm:args.confirm});page='overview';draft=null;timetableDraft=null;timetableRevision=null;notice='Event deleted. Accounts and other events are kept.';
+  }else if(cmd==='load_task_drafts'||cmd==='save_task_draft'){
+   taskDraftReport=await rpc('tno_task_drafts',{action:cmd==='save_task_draft'?'save':'report',args});page='task_drafts';if(cmd==='save_task_draft')notice='Private flight draft saved. Nothing has been sent.';
+  }else if(cmd==='copy_task_drafts'){
+   const copied=await rpc('tno_task_drafts',{action:'copy',args:{event:eid}});await sync(false);notice=copied.copied+' private drafts copied. Existing tasks were kept and nothing was sent.';
   }else if(cmd==='roster_refresh'||cmd==='roster_link'||cmd==='roster_exclude'||cmd==='roster_activate'){
    const action=cmd==='roster_link'?'link':cmd==='roster_exclude'?args.status:cmd==='roster_activate'?'activate':'report';
    rosterReport=await rpc('tno_roster',{action,args});page='register';
