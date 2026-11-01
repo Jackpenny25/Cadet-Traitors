@@ -13,7 +13,7 @@ export function ballotProgress(group){
 export function currentMission(state){const g=ownGroup(state);return g?.phase==='Mission'?state.missions.find(m=>m.idx===g.mission):null;}
 export function cadetSummary(state){
  const g=ownGroup(state);if(!g)return '';
- return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${esc(g.name)}</h2><p>${esc(g.phase)}</p>${state.ended&&g.winner?`<h3>${esc(g.winner)} win</h3>`:''}</div></section>`;
+ return `<section class="cadet-stage"><div><p class="eyebrow">Your team</p><h2>${g.registered_flight?esc(g.registered_flight+' Flight')+' · ':''}${esc(g.name)}</h2><p>${esc(g.phase)}</p>${state.ended&&g.winner?`<h3>${esc(g.winner)} win</h3>`:''}</div></section>`;
 }
 export function cadetMission(state){
  const m=currentMission(state);if(!m)return '';
@@ -42,6 +42,8 @@ export function eventUpdates(before,after){
  const updates=[];
  if(after.announcement&&after.announcement!==before.announcement)updates.push({title:'Announcement',message:after.announcement});
  if(!before.roles_released&&after.roles_released)updates.push({title:'Your file is ready',message:'Hold the seal to open your private role.'});
+ if(!after.organiser&&(after.plain_tasks||[]).some(t=>t.state!=='draft'&&!(before.plain_tasks||[]).some(old=>old.id===t.id&&old.state!=='draft')))updates.push({title:'New private flight task',message:'Open your classified area to read Murder in Plain Sight. Keep it private.'});
+ if(!after.organiser&&(after.plain_tasks||[]).some(t=>t.state==='open'&&!(before.plain_tasks||[]).some(old=>old.id===t.id&&old.state==='open')))updates.push({title:'Task submissions are open',message:'Report your physical task and the person involved from your private task card.'});
  const g=ownGroup(after),old=ownGroup(before);
  if(!after.organiser&&g&&old){
   if(after.me.status!==before.me.status)updates.push({title:after.me.status==='Active'?'Player update':'You have been '+after.me.status.toLowerCase(),message:'You can still help your team with physical missions.'});

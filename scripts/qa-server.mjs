@@ -1,6 +1,6 @@
 // Local QA only. Real embedded Postgres, mocked Supabase Auth, no remote project writes.
 import {createServer} from 'node:http';
-import {readFile,mkdir} from 'node:fs/promises';
+import {readFile,mkdir,readdir} from 'node:fs/promises';
 import {resolve,extname} from 'node:path';
 import {eventDatabase} from '../tests/runtime-helpers.js';
 const root=resolve('work-before-simplify/qa-site');await mkdir(root,{recursive:true});
@@ -11,6 +11,10 @@ await fixture.db.exec(await readFile('supabase/migrations/20261023211459_guard_e
 await fixture.db.exec(await readFile('supabase/migrations/20261028164351_clarify_cadet_flow_and_joining.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261028173202_actionable_group_controls_and_role_labels.sql','utf8'));
 await fixture.db.exec(await readFile('supabase/migrations/20261028205344_evidence_room_stages.sql','utf8'));
+if(process.env.TNO_QA_NEW_FLOW==='true'){
+ await fixture.db.exec(`create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,metadata jsonb);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert on storage.objects to authenticated;`);
+ for(const f of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')&&f>'20261028205344_evidence_room_stages.sql').sort())await fixture.db.exec(await readFile('supabase/migrations/'+f,'utf8'));
+}
 const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
 if(process.env.TNO_PRIVATE_MISSION_PLAN_PATH){
  const pack=JSON.parse(await readFile(process.env.TNO_PRIVATE_MISSION_PLAN_PATH,'utf8'));
@@ -21,8 +25,20 @@ await fixture.cmd(0,'joining',id,{open:true});
 for(let i=1;i<=50;i++)await fixture.cmd(i,'join');
 await fixture.cmd(0,'assign_staff',id,{name:'Person 51',groups:[(await fixture.snap(0,id)).groups[0].id]});
 await fixture.cmd(0,'prepare_roles',id);await fixture.cmd(0,'release_roles',id);await fixture.cmd(0,'mission',id,{mission:0});
+if(process.env.TNO_QA_NEW_FLOW==='true'){
+ await fixture.cmd(0,'discussion',id);await fixture.cmd(0,'open_vote',id);await fixture.cmd(0,'close_vote',id);
+ for(const g of (await fixture.snap(0,id)).groups)await fixture.cmd(0,'skip_ballot',id,{group:g.id});
+ await fixture.cmd(0,'open_murder',id,{slot:0});
+ for(const w of (await fixture.snap(0,id)).windows)await fixture.cmd(0,'lock_murder',id,{group:w.group_id,opportunity:w.id});
+ for(const r of (await fixture.snap(0,id)).reveals.filter(r=>!r.published))await fixture.cmd(0,'publish',id,{group:r.group_id,reveal:r.id});
+ await fixture.cmd(0,'mission',id,{mission:1});await fixture.cmd(0,'discussion',id);await fixture.cmd(0,'open_vote',id);
+ const state=await fixture.snap(0,id);
+ for(const g of state.groups){await fixture.cmd(0,'plain_save',id,{group:g.id,task:'Synthetic QA: show a paper raven to your proposed victim and explain their response.',explanation:'required',photo:'required',nco:true});const task=(await fixture.snap(0,id)).plain_tasks.find(t=>t.group===g.id);await fixture.cmd(0,'plain_send',id,{group:g.id,revision:task.revision});await fixture.cmd(0,'plain_open',id,{group:g.id});}
+ console.log('New flow QA actors: '+state.players.filter(p=>p.role==='Traitor').map(p=>p.account_name+' ('+state.groups.find(g=>g.id===p.group).name+')').join(', '));
+}
 const practice=await fixture.cmd(0,'create',null,{title:'Separate NCO rehearsal',practice:true,groups:4,size:13,traitors:2});
 await fixture.cmd(0,'joining',practice.id,{open:true});
+if(process.env.TNO_QA_NEW_FLOW==='true')await fixture.cmd(0,'plain_save',practice.id,{group:(await fixture.snap(0,practice.id)).groups[0].id,task:'REVIEW DRAFT: complete the physical action with the proposed victim.',explanation:'required',photo:'optional',nco:false});
 const projector=await fixture.cmd(0,'create',null,{title:'Projector animation check',practice:true});
 await fixture.cmd(0,'add_test_players',projector.id,{target_total:24});
 await fixture.cmd(0,'prepare_roles',projector.id);await fixture.cmd(0,'release_roles',projector.id);
@@ -30,6 +46,7 @@ await fixture.cmd(0,'mission',projector.id,{mission:0});await fixture.cmd(0,'dis
 await fixture.cmd(0,'test_votes',projector.id,{expected_ballots:Object.fromEntries((await fixture.snap(0,projector.id)).groups.map(g=>[g.id,g.ballot.id]))});
 await fixture.cmd(0,'close_vote',projector.id);
 const tokens=new Map();
+const qaPhotos=new Map();
 const session=(index)=>{
  const uid=fixture.users[index];const now=Math.floor(Date.now()/1000);const token=[{alg:'HS256',typ:'JWT'},{sub:uid,aud:'authenticated',role:'authenticated',session_id:uid,iat:now,exp:now+3600},'LOCAL_QA_ONLY'].map((v,i)=>i===2?v:Buffer.from(JSON.stringify(v)).toString('base64url')).join('.');
  tokens.set(token,index);return {access_token:token,refresh_token:'local-'+uid,expires_in:3600,expires_at:now+3600,token_type:'bearer',user:{id:uid,aud:'authenticated',role:'authenticated',is_anonymous:true,app_metadata:{provider:'anonymous'},user_metadata:{},identities:[],created_at:new Date().toISOString()}};
@@ -40,6 +57,19 @@ const handler=async(req,res)=>{
  if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
  const url=new URL(req.url,'http://127.0.0.1');
  try{
+  if(process.env.TNO_QA_NEW_FLOW==='true'&&url.pathname.startsWith('/storage/v1/object/')){
+   const index=tokens.get((req.headers.authorization||'').replace(/^Bearer /,''));if(index===undefined)throw new Error('Sign in required');
+   const path=url.pathname.split('/').at(-1);
+   if(req.method==='POST'){
+    const chunks=[];let size=0;for await(const chunk of req){chunks.push(chunk);size+=chunk.length;if(size>5242880)throw new Error('Photo exceeds 5 MB');}
+    if(req.headers['content-type']!=='image/jpeg')throw new Error('JPEG required');
+    await fixture.queryAs(index,"insert into storage.objects(bucket_id,name,metadata) values('murder-evidence',$1,$2)",[path,JSON.stringify({size,mimetype:'image/jpeg'})]);qaPhotos.set(path,Buffer.concat(chunks));res.setHeader('Content-Type','application/json');res.end(JSON.stringify({Key:'murder-evidence/'+path}));return;
+   }
+   if(req.method==='GET'){
+    const rows=(await fixture.queryAs(index,"select name from storage.objects where bucket_id='murder-evidence' and name=$1",[path])).rows;if(!rows.length||!qaPhotos.has(path))throw new Error('Photo unavailable');res.setHeader('Content-Type','image/jpeg');res.end(qaPhotos.get(path));return;
+   }
+   throw new Error('Unsupported evidence operation');
+  }
   if(url.pathname.startsWith('/auth/v1/')||url.pathname.startsWith('/rest/v1/rpc/')){
    let body='';for await(const chunk of req){body+=chunk;if(body.length>20000)throw new Error('Request too large');}const args=body?JSON.parse(body):{};
    const index=tokens.get((req.headers.authorization||'').replace(/^Bearer /,''));
@@ -52,7 +82,7 @@ const handler=async(req,res)=>{
    }else if(url.pathname==='/auth/v1/user'){if(index===undefined)throw new Error('Sign in required');value=session(index).user;
    }else if(url.pathname==='/auth/v1/logout'){if(index!==undefined)await fixture.queryAs(-1,'delete from auth.sessions where user_id=$1',[fixture.users[index]]);value={};
    }else{
-    const name=url.pathname.split('/').pop();if(!['tno_login','tno_logout','tno_snapshot','tno_command','tno_board','tno_export','tno_recover'].includes(name))throw new Error('Unknown API');
+    const name=url.pathname.split('/').pop();if(!['tno_login','tno_logout','tno_snapshot','tno_command','tno_board','tno_export','tno_recover','tno_roster'].includes(name))throw new Error('Unknown API');
     value=await fixture.rpc(index===undefined?null:index,name,args);
    }
    res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return;

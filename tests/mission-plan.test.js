@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {eventDatabase} from './runtime-helpers.js';
-import {missionPlan,missionTimetable,missionPlanId} from '../src/mission-plan.js';
+import {legacyMissionPlan as missionPlan,legacyMissionTimetable as missionTimetable,missionPlanId} from '../src/mission-plan.js';
 import {missionCards,missionPlanReview,privateMissionPack} from '../src/mission-review.js';
 import {cadetMission} from '../src/event-presentation.js';
 const previous=['20261023203457_dramatic_four_group_schedule.sql','20261023211459_guard_event_admin_actions.sql','20261028164351_clarify_cadet_flow_and_joining.sql','20261028173202_actionable_group_controls_and_role_labels.sql'];
