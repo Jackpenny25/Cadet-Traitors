@@ -2,40 +2,46 @@ import QRCode from 'qrcode';
 import {supabaseConfig} from '../dist/supabase-config.js';
 import {esc} from './event-ui.js';
 import {boardSnapshot} from './event-contract.js';
-import {EliminationQueue,crest,eliminationCross,eliminationScene,eliminationDuration} from './event-theatre.js';
+import {crest,eliminationCross,eliminationDuration} from './event-theatre.js';
+import {PresenterCues,presenterScene,installPresenterControls} from './presenter-cues.js';
 const screen=document.getElementById('screen');const token=location.hash.slice(1);
-const deaths=new EliminationQueue();
-let busy=false,revealing=false,current=null,qr='',joinUrl='',lastDraw='';
+let cues=null,busy=false,revealing=false,current=null,qr='',joinUrl='',lastDraw='';
 const reducedMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function remember(){try{sessionStorage.setItem('tno-presenter:'+current.id,JSON.stringify(cues.save()));}catch{/* The board remains usable when browser storage is blocked. */}}
+function pendingMarker(){
+ const marker=screen.querySelector('[data-presenter-next]');if(!marker)return;
+ const count=cues.pending.length;marker.hidden=count===0;marker.disabled=revealing;
+ marker.querySelector('span:last-child').textContent=count;
+ const help=`${count} result${count===1?'':'s'} waiting. Click anywhere or press Page Down, Right Arrow, Space or Enter to reveal the next result.`;
+ marker.setAttribute('aria-label',help);marker.title=help;
+}
 function showNext(){
- if(revealing)return;const player=deaths.next();if(!player)return;
- revealing=true;
- const group=current.groups.find(g=>g.id===player.group);
+ if(revealing||!cues||document.hidden)return;const cue=cues.next();if(!cue)return;
+ revealing=true;pendingMarker();
  const overlay=document.createElement('section');overlay.className='elimination-theatre';overlay.setAttribute('role','status');
- overlay.innerHTML=eliminationScene(player,group);overlay.style.setProperty('--reveal-duration',eliminationDuration+'ms');
+ overlay.innerHTML=presenterScene(cue);overlay.style.setProperty('--reveal-duration',eliminationDuration+'ms');
  screen.append(overlay);
  if(reducedMotion())overlay.classList.add('verdict-complete');
  else setTimeout(()=>overlay.classList.add('verdict-complete'),Math.round(eliminationDuration*.7));
  setTimeout(()=>{
-  deaths.complete(player.id);overlay.remove();revealing=false;draw();
-  const tile=screen.querySelector(`[data-player="${player.id}"]`);if(tile)tile.classList.add('just-eliminated');
-  showNext();
+  cues.complete();remember();overlay.remove();revealing=false;draw();pendingMarker();
+  const tile=cue.type==='elimination'&&screen.querySelector(`[data-player="${cue.player.id}"]`);if(tile)tile.classList.add('just-eliminated');
  },reducedMotion()?1600:eliminationDuration);
 }
 function draw(){
  const s=current;
- const fingerprint=JSON.stringify([s.title,s.groups.map(g=>[g.id,g.name]),s.players,[...deaths.presented]]);
+ const fingerprint=JSON.stringify([s.title,s.groups.map(g=>[g.id,g.name]),s.players,[...cues.presented]]);
  if(fingerprint===lastDraw)return;lastDraw=fingerprint;
  let board=screen.querySelector('.projector-groups');
  if(!board){
-  screen.innerHTML=`<header class="projector-header"><div class="projector-title">${crest}<p class="eyebrow">2427 Biggin Hill Air Cadets${s.practice?' · Rehearsal':''}</p><h1>${esc(s.title)}</h1></div><a class="join-qr" href="${esc(joinUrl)}" aria-label="Open the event website"><img width="144" height="144" src="${qr}" alt="Scan to open Trust No One"></a></header><p id="board-connection" class="board-connection" role="status" hidden></p><section class="projector-groups" style="--group-count:${s.groups.length}" aria-label="Player groups"></section>`;
+  screen.innerHTML=`<header class="projector-header"><div class="projector-title">${crest}<p class="eyebrow">2427 Biggin Hill Air Cadets${s.practice?' · Rehearsal':''}</p><h1>${esc(s.title)}</h1></div><a class="join-qr" href="${esc(joinUrl)}" aria-label="Open the event website"><img width="144" height="144" src="${qr}" alt="Scan to open Trust No One"></a></header><p id="board-connection" class="board-connection" role="status" hidden></p><section class="projector-groups" style="--group-count:${s.groups.length}" aria-label="Player groups"></section><button type="button" class="presenter-pending" data-presenter-next hidden><span class="presenter-dot" aria-hidden="true"></span><span aria-hidden="true">0</span></button>`;
   board=screen.querySelector('.projector-groups');
  }
  screen.querySelector('h1').textContent=s.title;
  screen.style.setProperty('--roster-rows',Math.max(1,...s.groups.map(g=>s.players.filter(p=>p.group===g.id).length)));
  board.style.setProperty('--group-count',s.groups.length);
  board.innerHTML=s.groups.map((g,i)=>`<article class="projector-group flight-${i}"><header><span class="flight-index" aria-hidden="true">0${i+1}</span><h2>${esc(g.name)}</h2></header><div class="board-names">${s.players.filter(p=>p.group===g.id).sort((a,b)=>a.number-b.number).map(p=>{
-  const dead=deaths.presented.has(p.id);return `<div data-player="${esc(p.id)}" class="name-tile ${dead?'eliminated':''} ${p.status==='Withdrawn'?'withdrawn':''}"><span class="tile-number">${esc(String(p.number).padStart(2,'0'))}</span><span class="tile-name">${esc(p.name)}</span>${dead?eliminationCross:''}<span class="sr-only">${dead?esc(p.status):p.status==='Withdrawn'?'Withdrawn':'Active'}</span></div>`;
+  const dead=cues.presented.has(p.id);return `<div data-player="${esc(p.id)}" class="name-tile ${dead?'eliminated':''} ${p.status==='Withdrawn'?'withdrawn':''}"><span class="tile-number">${esc(String(p.number).padStart(2,'0'))}</span><span class="tile-name">${esc(p.name)}</span>${dead?eliminationCross:''}<span class="sr-only">${dead?esc(p.status):p.status==='Withdrawn'?'Withdrawn':'Active'}</span></div>`;
  }).join('')}</div></article>`).join('');
 }
 async function refresh(){
@@ -46,7 +52,8 @@ async function refresh(){
   if(!response.ok)throw new Error('Projector unavailable. Check the connection and current board link.');
   current=boardSnapshot(await response.json());
   if(!joinUrl){const url=new URL('./index.html',location.href);if(current.practice)url.searchParams.set('practice',current.id);joinUrl=url.href;qr=await QRCode.toDataURL(joinUrl,{width:240,margin:2,errorCorrectionLevel:'M',color:{dark:'#111410',light:'#fff9e9'}});}
-  deaths.update(current.players);draw();showNext();
+  if(!cues){let saved;try{saved=JSON.parse(sessionStorage.getItem('tno-presenter:'+current.id));}catch{}cues=new PresenterCues(saved);}
+  cues.update(current);draw();pendingMarker();remember();
   const status=document.getElementById('board-connection');if(status)status.hidden=true;
  }catch(error){
   const status=document.getElementById('board-connection');
@@ -54,4 +61,5 @@ async function refresh(){
   else screen.innerHTML=`<div class="board-empty"><h1>Trust No One</h1><p role="alert">${esc(error.message)}</p></div>`;
  }finally{busy=false;}
 }
+installPresenterControls(document,showNext);
 refresh();setInterval(refresh,2000);window.addEventListener('online',refresh);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
