@@ -184,7 +184,7 @@ function canStartTask(row){return event.host?(row.action!=='release_roles'||role
 function taskMenu(row,dirty){
  const groups=event.groups.filter(g=>!target||g.id===target);
  const beginLabel={activity:'Begin '+row.label,release_roles:'Release private envelopes',mission:'Begin mission',discussion:'Start discussion',open_murder:'Open murder opportunity',finish:'Reveal final results'}[row.action];
- let items=['task-send','task-close','task-reveal'].includes(row.id)?'':controls('start_task',beginLabel,{row:row.id,revision:event.timetable_revision},!dirty&&canStartTask(row));
+ let items=['first-results','task-send','task-close','task-reveal'].includes(row.id)?'':controls('start_task',beginLabel,{row:row.id,revision:event.timetable_revision},!dirty&&canStartTask(row));
  const action=(cmd,label,args={},permitted=can(cmd))=>controls(cmd,label,args,!dirty&&permitted);
  if(row.action==='release_roles')items=action('joining',event.joining?'Close joining':'Open joining',{open:!event.joining},event.host&&(!roleReadiness(event).hasPrepared||event.roles_released))+action('prepare_roles','Prepare random roles',{},event.host&&roleReadiness(event).canPrepare)+items;
  if(row.action==='mission')items+=action('planning','Open private planning')+btn('page','Mission card and scoring',{page:'missions'});
@@ -194,15 +194,14 @@ function taskMenu(row,dirty){
   items+=action('open_vote','Open voting',{round})+action('close_vote','Close voting',{round})+action('runoff','Start tied runoff',{round})+action('random_draw','Draw after tied runoff',{round})+action('reopen_ballot','Reopen empty ballot',{round})+action('skip_ballot','Skip empty ballot',{round});
   if(event.host&&event.practice)items+=action('test_votes','Generate test votes',{round},true);
  }
- if(row.action==='open_murder'&&Number(row.slot)===0){
-  const slot=row.action==='open_murder'?Number(row.slot):1;
-  if(row.action!=='open_murder')items+=action('open_murder','Open second murder',{slot});
+ if(row.action==='open_murder'&&Number(row.slot)===0||row.id==='first-results'){
+  const slot=0;
   items+=action('publish_ready','Reveal ready murder outcomes',{kind:'murder',slot},can('publish'));
   for(const r of (event.first_murder||[]).filter(r=>groups.some(g=>g.id===r.group)))items+=action('first_publish_quiz',r.published?'Quiz result already published':'Publish quiz winner: '+groupLabel(r.group),{group:r.group,opportunity:r.opportunity},can('publish')&&r.closed&&!r.published);
   items+=action('lock_murder','Lock standard choices')+btn('page','Private objective and verification',{page:'overview'});
  }
  if(['task-send','break','task-close','task-reveal','round2'].includes(row.id))items+=plainTimetableControls(event,row,target,dirty);
- if(['discussion','open_murder'].includes(row.action)||row.id==='break'){
+ if(['discussion','open_murder'].includes(row.action)||['break','first-results'].includes(row.id)){
   for(const r of event.reveals.filter(r=>groups.some(g=>g.id===r.group_id)&&(row.action==='discussion'?r.ballot:r.opportunity)&&(!r.published||r.kind==='Banished'&&!r.role_revealed))){
    items+=btn(r.published?'reveal_role':'publish',(r.published?'Reveal role: ':'Reveal outcome: ')+groupLabel(r.group_id),{group:r.group_id,reveal:r.id},dirty||event.ended||!can(r.published?'reveal_role':'publish')||!outcomeReady(r)?'disabled':'');
   }
