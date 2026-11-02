@@ -14,6 +14,7 @@ await fixture.db.exec(await readFile('supabase/migrations/20261028205344_evidenc
 if(process.env.TNO_QA_NEW_FLOW==='true'){
  await fixture.db.exec(`create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,metadata jsonb);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert on storage.objects to authenticated;`);
  for(const f of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')&&f>'20261028205344_evidence_room_stages.sql').sort())await fixture.db.exec(await readFile('supabase/migrations/'+f,'utf8'));
+ await fixture.db.query("insert into private.raf_quiz_bank values('raf-general-v1',$1,'QA only: estimate a whole number',100,'[]')",[JSON.stringify([{id:'a',prompt:'Synthetic RAF question A',answers:['alpha']},{id:'b',prompt:'Synthetic RAF question B',answers:['bravo']}])]);
 }
 const {id}=await fixture.cmd(0,'create',null,{title:'2427: Trust No One',groups:4,size:13,traitors:2});
 if(process.env.TNO_PRIVATE_MISSION_PLAN_PATH){
@@ -29,12 +30,19 @@ if(process.env.TNO_QA_NEW_FLOW==='true'){
  await fixture.cmd(0,'discussion',id);await fixture.cmd(0,'open_vote',id);await fixture.cmd(0,'close_vote',id);
  for(const g of (await fixture.snap(0,id)).groups)await fixture.cmd(0,'skip_ballot',id,{group:g.id});
  await fixture.cmd(0,'open_murder',id,{slot:0});
- for(const w of (await fixture.snap(0,id)).windows)await fixture.cmd(0,'lock_murder',id,{group:w.group_id,opportunity:w.id});
+ if(process.env.TNO_QA_FIRST_MURDER!=='true'){
+ await fixture.queryAs(-1,"update private.first_murder_rounds set chat_until=clock_timestamp()-interval '1 second' where event_id=$1",[id]);
+ for(const r of (await fixture.snap(0,id)).first_murder){await fixture.cmd(0,'first_manual',id,{opportunity:r.opportunity,target:'',reason:'QA no-murder setup'});await fixture.cmd(0,'first_publish_quiz',id,{opportunity:r.opportunity});}
  for(const r of (await fixture.snap(0,id)).reveals.filter(r=>!r.published))await fixture.cmd(0,'publish',id,{group:r.group_id,reveal:r.id});
  await fixture.cmd(0,'mission',id,{mission:1});await fixture.cmd(0,'discussion',id);await fixture.cmd(0,'open_vote',id);
  const state=await fixture.snap(0,id);
  for(const g of state.groups){await fixture.cmd(0,'plain_save',id,{group:g.id,task:'Synthetic QA: show a paper raven to your proposed victim and explain their response.',explanation:'required',photo:'required',nco:true});const task=(await fixture.snap(0,id)).plain_tasks.find(t=>t.group===g.id);await fixture.cmd(0,'plain_send',id,{group:g.id,revision:task.revision});await fixture.cmd(0,'plain_open',id,{group:g.id});}
  console.log('New flow QA actors: '+state.players.filter(p=>p.role==='Traitor').map(p=>p.account_name+' ('+state.groups.find(g=>g.id===p.group).name+')').join(', '));
+ }else{
+  const state=await fixture.snap(0,id);console.log('First-murder QA Traitors: '+state.players.filter(p=>p.role==='Traitor').map(p=>p.account_name+' ('+state.groups.find(g=>g.id===p.group).name+')').join(', '));
+  console.log('First-murder QA board: http://127.0.0.1:'+ports[0]+'/projector.html#'+state.display_token);
+  await fixture.cmd(0,'room_control',id,{group:state.groups[0].id,enabled:true});
+ }
 }
 const practice=await fixture.cmd(0,'create',null,{title:'Separate NCO rehearsal',practice:true,groups:4,size:13,traitors:2});
 await fixture.cmd(0,'joining',practice.id,{open:true});
@@ -111,6 +119,7 @@ if(revealDelay>0)setTimeout(async()=>{
 if(process.env.TNO_QA_INTERACTIVE==='true'){
  const {createInterface}=await import('node:readline');
  createInterface({input:process.stdin}).on('line',async line=>{
+  if(line.trim()==='first-expire'){await fixture.queryAs(-1,"update private.first_murder_rounds set chat_until=clock_timestamp()-interval '1 second' where event_id=$1",[id]);console.log('QA private chat advanced.');return;}
   if(line.trim()!=='reveal')return;
   const state=await fixture.snap(0,projector.id),reveal=state.reveals.find(r=>!r.published);
   if(!reveal){console.log('No pending fixture outcome.');return;}

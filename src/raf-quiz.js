@@ -1,0 +1,42 @@
+import {esc,btn,form,field,text,select,panel} from './event-ui.js';
+
+export const ownFirstRound=state=>(state?.first_murder||[]).find(r=>r.group===state.me?.group);
+export function firstMessages(state){
+ const r=ownFirstRound(state);if(!r)return '';
+ return state.messages.filter(m=>m.group_id===r.group&&Date.parse(m.created_at)>=Date.parse(r.chat_until)-90000).slice().reverse().map(m=>`<p><span class="muted">${esc(m.sender)}:</span> ${esc(m.body)}</p>`).join('');
+}
+export function quizProgress(state){
+ const r=ownFirstRound(state);if(!r||state.me?.role!=='Faithful'||state.me.status!=='Active')return '';
+ if(r.closed&&state.groups?.find(g=>g.id===r.group)?.phase!=='Night')return '';
+ return panel('RAF shield challenge',r.closed?'<p>Your flight’s quiz has closed. Saved answers have been counted. The organiser will reveal the shield winner before the murder result.</p>':`<p>Answer the same RAF questions as the other Faithful. Most correct answers wins a shield for this murder. The numerical estimate breaks a tie; an exact tie uses a random draw.</p><p>Your answers stay editable until your flight’s victim is sealed. ${Object.keys(r.answers).length}/${r.questions.length} questions saved.</p>${btn('quiz_open','Continue RAF quiz')}`,'quiz-card');
+}
+export function quizPopup(state,step=0){
+ const r=ownFirstRound(state);if(!r||r.closed||state.me.role!=='Faithful'||state.me.status!=='Active')return '';
+ const tie=r.tie===null||r.tie===undefined||step<0;
+ const q=r.questions[step],review=!tie&&!q;
+ const body=tie?form('raf_answer',field('tie',r.tie_prompt,'number',r.tie??'','required min="0" max="999999999" step="1" inputmode="numeric"')+'<p>Everyone submits an estimate. It is used only when quiz scores tie.</p>','Save estimate and begin',{opportunity:r.opportunity}):review?'<p>All questions are available for review. Keep your phone with you: answers stay editable until your flight’s victim is sealed.</p>':form('raf_answer',`<p class="eyebrow">Question ${step+1} of ${r.questions.length}</p>`+field('answer',q.prompt,'text',r.answers[q.id]||'','maxlength="120" autocomplete="off"')+'<p class="tiny muted">A short answer is enough. You can save a blank answer and return to it.</p>','Save and continue',{opportunity:r.opportunity,question:q.id});
+ return `<section class="raf-quiz-popup" role="dialog" aria-modal="true" aria-labelledby="raf-quiz-title"><div class="raf-quiz-sheet"><p class="eyebrow">2427 · First murder challenge</p><h2 id="raf-quiz-title">Earn your shield</h2><p>Your flight’s quiz closes when its victim is chosen. Your shield is awarded before that murder is resolved.</p>${body}${r.tie!==null&&r.tie!==undefined?`<nav class="quiz-question-nav" aria-label="Review quiz answers">${btn('quiz_step','Estimate',{step:-1})}${r.questions.map((question,i)=>btn('quiz_step',String(i+1)+(Object.hasOwn(r.answers,question.id)?' ✓':''),{step:i},step===i?'aria-current="step"':'')).join('')}${btn('quiz_step','Review',{step:r.questions.length})}</nav>`:''}${btn('quiz_hide','Minimise quiz')}<p class="tiny muted">Only answers confirmed as saved are counted. Reconnect and sign in again to continue on another device.</p></div></section>`;
+}
+export function firstTraitor(state){
+ const r=ownFirstRound(state);if(!r||state.me.role!=='Traitor'||state.me.status!=='Active')return '';
+ if(r.chosen&&state.groups?.find(g=>g.id===r.group)?.phase!=='Night')return '';
+ if(r.chosen)return panel('First murder sealed','<p>Your flight’s decision is sealed. Its quiz has closed. Wait for the public results; no replacement choice is available.</p>');
+ if(r.chat_open)return panel('Private first-murder conversation',`<p>You have 90 seconds from the flight’s start to coordinate privately. Chat closes at ${esc(new Date(r.chat_until).toLocaleTimeString('en-GB'))}. Afterwards, the server randomly selects one active Traitor to seal the victim.</p><div class="message-list" aria-live="polite">${firstMessages(state)}</div>${form('message',text('text','Message your fellow Traitor','',240),'Send privately',{opportunity:r.opportunity})}`,'first-murder-private');
+ if(!r.can_choose)return panel('Private conversation closed',`<p>${r.selected?'Your decision is already sealed.':'Your partner has been chosen to make this murder decision. You do not need to choose a victim.'}</p><p>If the chosen player loses connection, they can sign in again. Their responsibility stays with their account. Ask FS Penny if they cannot return.</p>`);
+ return panel('You have been selected',`<p>Chat is closed. Choose one active Faithful in your own flight. Sealing your choice closes their quiz, awards its shield and resolves the attempt privately. You cannot replace a shielded target.</p>${form('first_choose',select('target','Proposed victim',state.players.filter(p=>p.group===r.group&&p.status==='Active'&&p.role!=='Traitor').map(p=>({id:p.id,name:p.name}))),'Seal this victim',{opportunity:r.opportunity})}`,'first-murder-private');
+}
+export function firstHost(state,target=''){
+ if(!state.organiser)return '';
+ const rounds=(state.first_murder||[]).filter(r=>(!target||r.group===target)&&!(r.published&&state.groups.find(g=>g.id===r.group)?.phase!=='Night'));
+ if(!rounds.length)return '';
+ return panel('First murder and RAF shield quiz',`<p>Each flight runs independently: 90-second private chat → one selected Traitor seals a victim → quiz scores and shields are calculated → publish the quiz winner → publish the murder. Each projector then waits for its presenter’s click.</p>${rounds.map(r=>{
+  const g=state.groups.find(g=>g.id===r.group),p=state.players.find(p=>p.id===r.decider),winner=state.players.find(p=>p.id===r.winner);
+  const publishDisabled=r.published||(!state.host&&!state.nco_permissions?.includes('publish'));
+  const status=r.closed?'Quiz counted and murder locked privately':Date.parse(state.server_now)<Date.parse(r.chat_until)?'Quiz open · private chat running':`Quiz open · waiting for ${p?.name||'the selected Traitor'}`;
+  return `<article class="first-murder-host"><h3>${esc(g?.name)}</h3><p>${esc(status)}</p><p>${r.entries} numerical estimates saved. ${r.closed?r.winner?`${esc(winner?.name)} earned the shield with ${r.score}/${r.total}${r.draw?' after an exact-tie random draw':''}.`:'No eligible player saved a numerical estimate, so no quiz shield was awarded.':''}</p>${r.closed?btn('first_publish_quiz',r.published?'Quiz winner published':'Publish quiz winner',{opportunity:r.opportunity},publishDisabled?'disabled':'', 'Make this flight’s shield result public before its murder. The presenter still chooses when to play the queued result.'):''}${state.host&&!r.closed?`<details><summary>FS Penny: manual first-murder recovery</summary><p>Use only if the selected Traitor cannot reconnect. Wait until private chat has closed. An empty selection deliberately records no murder.</p>${form('first_manual',select('target','Manual victim',[{id:'',name:'No murder'},...state.players.filter(p=>p.group===r.group&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:p.name}))])+field('reason','Why is manual recovery needed?','text','','required maxlength="200"'),'Record manual decision',{opportunity:r.opportunity})}</details>`:''}</article>`;
+ }).join('')}`);
+}
+export function ncoGuide(state){
+ if(!state.organiser)return '';
+ return panel(state.host?'Room-running guide':'Your flight control guide',`<details><summary>Open the step-by-step room guide</summary><p>FS Penny opens joining, assigns staff, prepares and releases roles. Enabled flight NCOs take over from the first mission.</p><ol><li>Choose your flight, then open its next-step card or timetable Activity controls.</li><li>Start the mission, supervise the physical task and record its score in Missions.</li><li>Start discussion, open voting, then close voting. Resolve a tie with a runoff and, if needed, a random draw. An empty ballot can be reopened or deliberately skipped.</li><li>Publish the round-table outcome. Reveal the banished role separately when the presenter is ready.</li><li>For first murder, open it once. Let the phone quiz and private chat run. Publish the quiz winner before the locked murder outcome.</li><li>FS Penny prepares and approves Murder in Plain Sight. Ask them to resolve that task before beginning Final Review.</li></ol><p>Publication makes a result public to players. The projector queues it until its presenter clicks. Read the small help dot beside any button for its prerequisites and effect. Disabled controls explain the step still needed.</p></details>`,'nco-guide');
+}

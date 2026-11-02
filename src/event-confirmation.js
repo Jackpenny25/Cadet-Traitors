@@ -1,4 +1,5 @@
 const labels={
+ first_choose:'Seal victim',first_manual:'Record manual decision',first_publish_quiz:'Publish quiz winner',
  publish_ready:'Reveal outcomes',release_roles:'Release envelopes',prepare_roles:'Prepare roles',
  reset_roles:'Reset unreleased roles',publish:'Reveal outcome',reveal_role:'Reveal role',
  finish:'Reveal final results',random_draw:'Draw a player',close_vote:'Close voting',

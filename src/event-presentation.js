@@ -46,6 +46,10 @@ export function eventUpdates(before,after){
  if(!after.organiser&&(after.plain_tasks||[]).some(t=>t.state==='open'&&!(before.plain_tasks||[]).some(old=>old.id===t.id&&old.state==='open')))updates.push({title:'Task submissions are open',message:'Report your physical task and the person involved from your private task card.'});
  const g=ownGroup(after),old=ownGroup(before);
  if(!after.organiser&&g&&old){
+  const first=(after.first_murder||[]).find(r=>r.group===g.id),previous=(before.first_murder||[]).find(r=>r.group===g.id);
+  if(first&&!previous&&after.me.role==='Faithful'&&!first.closed)updates.push({title:'RAF shield challenge',message:'Your quiz is ready. Save your numerical estimate, then answer the RAF questions to compete for protection from this murder.'});
+  if(first?.closed&&!previous?.closed&&after.me.role==='Faithful')updates.push({title:'Your flight quiz has closed',message:'Your saved answers have been counted. The shield winner will be revealed before the murder result.'});
+  if(previous?.chat_open&&!first?.chat_open&&after.me.role==='Traitor')updates.push({title:'Private conversation closed',message:first?.selected?'You have been selected. Open your private area to seal the victim.':'Your partner makes this decision. You do not need to select a victim.'});
   if(after.me.status!==before.me.status)updates.push({title:after.me.status==='Active'?'Player update':'You have been '+after.me.status.toLowerCase(),message:'You can still help your team with physical missions.'});
   if(g.phase!==old.phase||g.mission!==old.mission||g.active_task!==old.active_task){
    const m=currentMission(after);updates.push({title:m?'Mission started':g.phase==='Voting'?'Voting is open':'New stage',message:m?.title||g.phase});

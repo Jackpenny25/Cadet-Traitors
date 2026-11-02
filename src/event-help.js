@@ -6,6 +6,11 @@ export function missionHelp(mission){
 
 export function commandHelp(cmd,args={}){
  const notes={
+  room_control:'Allow the assigned NCOs to run only this flight from the first mission onwards: physical missions and scoring, discussion, voting and ties, quiz winner and first-murder publication. FS Penny keeps joining, role release, account management, second-murder approval and whole-event administration.',
+  first_publish_quiz:'Publish the calculated RAF quiz winner and their first-murder shield before the murder result. This does not select or replace a victim. The projector holds the result for a presenter click.',
+  first_choose:'Seal one eligible active Faithful in your flight after the 90-second chat. Only the randomly selected Traitor can do this. Sealing closes the quiz and awards its shield before resolving the attempt. A shielded victim means no murder and no replacement.',
+  first_manual:'FS Penny only: record the first-murder victim, or deliberately no murder, when the selected Traitor cannot reconnect. A reason is recorded. The quiz is counted and shields applied before resolving the attempt.',
+  raf_answer:'Save this answer to the protected server. You can review it until your flight victim is chosen. Everyone needs a numerical tie-breaker estimate to enter. No correct answers or live scores are disclosed.',
   save_task_draft:'Save a private host-only draft for this flight. No player receives it. Copy it into an event after completing setup, then send it separately.',
   load_task_drafts:'Open your private saved flight tasks. This works before creating an event.',
   plain_save:'Save this flight’s task and evidence requirements privately. Drafts survive refresh and sign out. Saving does not send or notify players.',
@@ -32,12 +37,12 @@ export function commandHelp(cmd,args={}){
   skip_ballot:'Deliberately skip a ballot that received no votes. Nobody is banished. This is only available to the main host.',
   reopen_ballot:'Reopen a ballot that received no votes so players can submit again. This is only available to the main host.',
   planning:'Open private planning until the next stage. Active Traitors in their group can coordinate; everyone else sees a neutral device prompt. Authorised organisers can supervise the messages.',
-  open_murder:'Open the first murder for private target selection. The second murder uses separate Murder in Plain Sight task controls. Opening never publishes a victim.',
-  lock_murder:'Close the standard target choices and record the outcome privately. Disagreements use the designated deciding Traitor. No valid choice means no murder. Publish the outcome separately.',
+  open_murder:'Start this flight RAF quiz for active Faithful and a 90-second private chat for active Traitors. After chat, the server randomly selects one Traitor to seal the victim. The quiz shield is awarded before that murder is resolved. Publish the quiz winner before publishing the murder. Second murder remains Murder in Plain Sight.',
+  lock_murder:'New first murders lock automatically when the randomly selected Traitor seals the victim. Publish the quiz winner, then the murder. This older lock control is retained only for opportunities already open before the quiz update; FS Penny has a separate manual recovery form for new rounds.',
   finale:'Start the closing phase for the selected groups. Deduction must be complete and outstanding decisions resolved. This does not reveal the final winners or all roles.',
   finish:'End the event and publicly disclose final group winners and all roles. Finish deduction in every group, close ballots, resolve murder opportunities and publish pending outcomes first. This disclosure cannot be undone.',
   announce:args.text?'Send a neutral “Check your device” announcement to player dashboards. It cannot wake locked phones or send a push notification.':'Replace the announcement on player dashboards with this text. It does not change the phase or publish a private outcome.',
-  publish:'Make this outcome public. An eliminated player appears on the projector with a dramatic reveal and a red X. Their hidden role is disclosed separately.',
+  publish:'Make this outcome public to players and queue it for the presenter. First-murder quiz winners must be published before their murder outcome. The presenter clicks to play the dramatic reveal and red X. A banished player’s hidden role is disclosed separately.',
   reveal_role:'Publicly disclose this banished player’s role. Their elimination has already been published. This does not reveal their partners.',
   export:'Download the selected event’s private recovery record, including roles, votes and pending outcomes. It excludes PIN hashes and session tokens. Store it on the organiser device, away from the projector.',
   rotate_board:'Replace this event’s read only projector link. The old link stops working. Open the new Projector link afterwards; player accounts and the website QR address are unchanged.',

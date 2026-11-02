@@ -16,6 +16,7 @@ import {captureFormDrafts,restoreFormDrafts} from './form-drafts.js';
 import {confirmAction} from './event-confirmation.js';
 import {fellowTraitors,plainPlayer,plainHost,plainTimetableControls,prepareEvidence,hostTaskDrafts} from './plain-sight.js';
 import {registerReview} from './register-review.js';
+import {ownFirstRound,quizProgress,quizPopup,firstTraitor,firstHost,ncoGuide,firstMessages} from './raf-quiz.js';
 
 const app=document.getElementById('app');
 const controlNotes=installControlNotes();
@@ -28,6 +29,7 @@ let timetableRenderedRows=[],timetableRenderedRevision=null;
 let rolePreview=null,noticeError=false;
 let privatePlanDraft=null,taskDraftReport=null;
 let fellowsOpen=false,rosterReport=null,evidencePhotos=[],evidenceTask=null,evidenceViews=[],mediaEpoch=0;
+let quizOpen=false,quizStep=0;
 function clearPrivateMedia(){mediaEpoch++;for(const p of [...evidencePhotos,...evidenceViews])if(p.url)URL.revokeObjectURL(p.url);evidencePhotos=[];evidenceViews=[];evidenceTask=null;document.getElementById('private-evidence-view')?.remove();}
 function sealPrivate(){fellowsOpen=false;clearPrivateMedia();}
 const fingerprint=()=>JSON.stringify(event||lobby,(key,value)=>key==='server_now'?undefined:key==='seen_at'?(page==='players'&&value?Math.floor(Date.parse(value)/20000):undefined):value);
@@ -37,6 +39,7 @@ const groupBy=id=>event?.groups.find(g=>g.id===id);
 const playerBy=id=>event?.players.find(p=>p.id===id);
 const numberName=p=>p?`${String(p.number).padStart(2,'0')} · ${p.name}`:'No elimination';
 const groupLabel=id=>groupBy(id)?.name||'';
+const outcomeReady=r=>!(event?.first_murder||[]).some(first=>first.opportunity===r.opportunity&&!first.published);
 function controls(cmd,label,args={},permitted=true){
  const payload={...(target?{group:target}:{}),
   expected_ballots:Object.fromEntries((event?.groups||[]).map(g=>[g.id,g.ballot?.id||null])),
@@ -86,15 +89,15 @@ function overview(){
  if(event.announcement)body=panel('Announcement',`<p>${esc(event.announcement)}</p>`)+body;
  if(event.host&&!event.practice&&!event.is_live)body+=panel('Live event selection',`<p>This event is preserved but is not the single live event.</p>${btn('set_live','Use this as the live event')}`);
  if(event.organiser){
+  body+=ncoGuide(event)+firstHost(event,target);
   body+=panel('Live controls',select('control-group','Control groups',[...(event.host?[{id:'',name:'All groups'}]:[]),...event.groups],target,'id="control-group"')+
-   `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},event.host)}${controls('skip_ballot','Skip empty ballot',{},event.host)}${controls('reopen_ballot','Reopen empty ballot',{},event.host)}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${btn('page','Murder in Plain Sight tasks',{page:'plain'})}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('finale','Start finale',{},event.host)}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition.</p>`);
+   `${groupGuidance()}<div class="control-grid">${event.missions.map(m=>controls('mission','Start '+m.title,{mission:m.idx},can('mission'))).join('')}${controls('discussion','Start discussion',{},can('discussion'))}${controls('open_vote','Open voting',{},can('open_vote'))}${controls('close_vote','Close voting',{},can('close_vote'))}${controls('runoff','Start tied runoff',{},can('runoff'))}${controls('random_draw','Draw after tied runoff',{},can('random_draw'))}${controls('skip_ballot','Skip empty ballot',{},can('skip_ballot'))}${controls('reopen_ballot','Reopen empty ballot',{},can('reopen_ballot'))}${controls('planning','Open private planning',{},can('planning'))}${controls('open_murder','Open first murder',{slot:0},can('open_murder'))}${btn('page','Murder in Plain Sight tasks',{page:'plain'})}${controls('lock_murder','Lock first murder choices',{},can('lock_murder'))}${controls('finale','Start finale',{},can('finale'))}</div><p class="tiny muted">Choose one group if groups are at different stages. The server checks every transition.</p>`);
   if(event.host){body+=mainHostPanel();if(event.practice)body+=rehearsalTools();}
   const reveals=event.ended?[]:event.reveals.filter(r=>(!r.published||r.kind==='Banished'&&!r.role_revealed)&&!(event.plain_tasks||[]).some(t=>t.opportunity===r.opportunity));
-  body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id},can('publish')?'':'disabled'):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id},can('reveal_role')?'':'disabled')}</div>`).join(''):empty('No outcomes waiting for publication.'));
+  body+=panel('Pending public reveals',reveals.length?reveals.map(r=>`<div class="action-row"><p>${esc(groupLabel(r.group_id))} · ${esc(r.kind)} · ${esc(numberName(playerBy(r.target)))}</p>${!r.published?btn('publish','Reveal outcome',{group:r.group_id,reveal:r.id},can('publish')&&outcomeReady(r)?'':'disabled'):btn('reveal_role','Reveal role',{group:r.group_id,reveal:r.id},can('reveal_role')?'':'disabled')}</div>`).join(''):empty('No outcomes waiting for publication.'));
   body+=murderControls();
   body+=plainHost(event,target);
-  if(event.host){const open=event.windows.filter(w=>w.mode==='standard'&&w.status==='open');if(open.length)body+=panel('Manual murder decision',`<p>Use only when recording a decision taken off the website. A reason is required and the outcome stays private until publication.</p>${open.map(w=>form('lock_murder',`<h3>${esc(groupLabel(w.group_id))}</h3>`+select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})))+field('reason','Why is a manual decision needed?','text','','required maxlength="200"'),'Record private decision',{group:w.group_id,opportunity:w.id})).join('')}`);}
-  if(can('open_murder'))body+=panel('Designated murder decision maker',event.groups.map(g=>form('open_murder',`<h3>${esc(g.name)}</h3>`+select('slot','Opportunity',[{id:0,name:'First murder'}])+select('decider','Designated active Traitor',event.players.filter(p=>p.group===g.id&&p.status==='Active'&&p.role==='Traitor').map(p=>({id:p.id,name:numberName(p)}))),'Open this opportunity',{group:g.id},event.ended?'disabled':'')).join(''));
+  if(event.host){const open=event.windows.filter(w=>w.mode==='standard'&&w.status==='open'&&!(event.first_murder||[]).some(r=>r.opportunity===w.id));if(open.length)body+=panel('Manual murder decision',`<p>Use only when recording a decision taken off the website. A reason is required and the outcome stays private until publication.</p>${open.map(w=>form('lock_murder',`<h3>${esc(groupLabel(w.group_id))}</h3>`+select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})))+field('reason','Why is a manual decision needed?','text','','required maxlength="200"'),'Record private decision',{group:w.group_id,opportunity:w.id})).join('')}`);}
   if(can('objective'))body+=panel('Supervised private communication',event.groups.map(g=>`<details><summary>${esc(g.name)}</summary>${form('organiser_message',text('text','Instruction to active Traitors','',240),'Send privately',{group:g.id},event.ended?'disabled':'')}${event.messages.filter(m=>m.group_id===g.id).map(m=>`<p>${esc(m.sender)}: ${esc(m.body)}</p>`).join('')}</details>`).join(''));
  }else body+=playerActions();
  return body;
@@ -122,21 +125,24 @@ function playerActions(){
   const candidates=event.players.filter(p=>p.group===me.group&&p.status==='Active'&&p.id!==me.id&&(!g.ballot.candidates||g.ballot.candidates.includes(p.id))).map(p=>({id:p.id,name:numberName(p)}));
   body+=panel('Your vote',form('vote',select('target','Choose a player',candidates,me.vote),'Save vote',{ballot:g.ballot.id})+`<p>${me.vote?'Server receipt: your current vote is for '+esc(numberName(playerBy(me.vote)))+'.':'No vote submitted yet.'}</p><p class="tiny muted">You may change your vote until the ballot closes.</p>`);
  }
+ body+=quizProgress(event);
  if(active&&me.role==='Traitor'&&roleOpen){
+  body+=firstTraitor(event);
   body+=fellowTraitors(event,fellowsOpen);
   body+=plainPlayer(event);
   for(const w of event.windows.filter(w=>w.group_id===me.group&&w.status==='open')){
    if(w.mode==='standard')body+=panel('Private target choice',form('propose',select('target','Choose an active Faithful',event.players.filter(p=>p.group===me.group&&p.status==='Active'&&p.role!=='Traitor').map(p=>({id:p.id,name:numberName(p)})),me.proposal),'Confirm my choice',{opportunity:w.id})+`<p>${me.proposal?'Saved choice: '+esc(numberName(playerBy(me.proposal))):'No choice submitted yet.'}</p>`);
    else body+=panel('Secret objective',`<p>${esc(w.objective||'Wait for your NCO’s private objective.')}</p><p>${w.target?'Target: '+esc(numberName(playerBy(w.target))):''}</p>${btn('report_objective',w.reported?'Reported to NCO':'Report completion',{opportunity:w.id})}<p>Only NCO verification can confirm an outcome.</p>`);
   }
-  if(g.planning){body+=panel('Private messages',`<div class="btns">${['I agree.','Please suggest another target.','Check the objective.','Ready when you are.'].map(message=>btn('message',message,{text:message})).join('')}</div>${event.chat_enabled?form('message',text('text','Short message','',240),'Send message'):''}<div class="message-list">${event.messages.filter(m=>m.group_id===me.group).map(m=>`<p><span class="muted">${esc(m.sender)}:</span> ${esc(m.body)}</p>`).join('')}</div>`);}
+  if(g.planning&&(!ownFirstRound(event)||(ownFirstRound(event).closed&&g.phase!=='Night'))){body+=panel('Private messages',`<div class="btns">${['I agree.','Please suggest another target.','Check the objective.','Ready when you are.'].map(message=>btn('message',message,{text:message})).join('')}</div>${event.chat_enabled?form('message',text('text','Short message','',240),'Send message'):''}<div class="message-list">${event.messages.filter(m=>m.group_id===me.group).map(m=>`<p><span class="muted">${esc(m.sender)}:</span> ${esc(m.body)}</p>`).join('')}</div>`);}
  }
  if(active&&me.role==='Traitor'&&!roleOpen&&(event.plain_tasks||[]).some(t=>t.state!=='draft'))body+=panel('Private flight task received',`<p>A Murder in Plain Sight task is waiting in your private area.</p>${btn('private_dashboard','Open private task')}`,'plain-task');
+ if(active&&me.role==='Traitor'&&!roleOpen&&ownFirstRound(event)&&!ownFirstRound(event).chosen)body+=panel('Private first-murder briefing',`<p>Open your private area to coordinate and see whether you have been selected.</p>${btn('private_dashboard','Open private briefing')}`);
  if(me.shields.length)body+=panel('Your protection','<p>You have a shield for opportunity '+me.shields.map(s=>s+1).join(', ')+'. It does not protect against banishment.</p>');
  return body;
 }
 function murderControls(){
- return event.windows.map(w=>{
+ return event.windows.filter(w=>!(event.first_murder||[]).some(r=>r.opportunity===w.id)).map(w=>{
   const args={group:w.group_id,opportunity:w.id};
   return panel(`${groupLabel(w.group_id)} · Murder opportunity ${w.slot+1}`,`<p>${w.mode==='plain'?'Supervised objective':'Standard selection'} · ${esc(w.status)}${w.reason?' · '+esc(w.reason):''}</p><p>${w.target?'Private target: '+esc(numberName(playerBy(w.target))):'No target confirmed.'}</p>${w.mode==='plain'?`<p>${esc(w.objective)}</p><p>${w.reported?'Traitor reports completion; verify physically.':'No completion report yet.'}</p>${w.status==='open'?form('objective',select('target','Eligible target',event.players.filter(p=>p.group===w.group_id&&p.status==='Active'&&p.role==='Faithful').map(p=>({id:p.id,name:numberName(p)})),w.target)+text('text','Private physical objective',w.objective,500),'Assign objective',args,can('objective')?'':'disabled')+form('confirm_objective',check('success','Physical objective succeeded')+field('reason','Verification or rejection reason','text','','required maxlength="200"'),'Resolve privately',args,can('confirm_objective')?'':'disabled'):''}`:`${(w.proposals||[]).map(p=>`<p>${esc(numberName(playerBy(p.actor)))} chose ${esc(numberName(playerBy(p.target)))}</p>`).join('')}${w.status==='open'?btn('lock_murder','Lock decisions privately',args,can('lock_murder')?'':'disabled'):''}`}`);
  }).join('');
@@ -161,7 +167,8 @@ function setupScreen(){
  }else body+=empty('Group sizes and role settings are locked once players join or private task drafts are saved. Missions and timetable remain editable.');
  body+=panel('Register flight mapping',`<p>1 Flight: Sgt Daldorph. 2 Flight: Sgt Hilditch / Sgt Penny. 3 Flight: Sgt Edwards. 4 Flight: Sgt Shulepko. These responsibilities do not grant website permissions. FS Penny controls the website; CWO Nevard presents.</p>${form('flight_map',[1,2,3,4].map(n=>select('flight_'+n,n+' Flight',event.groups,event.groups.find(g=>g.registered_flight===n)?.id)).join(''),'Save flight mapping')}${btn('roster_refresh','Private register review')}`);
  body+=panel('Assign group NCOs',form('assign_staff',field('name','Registered organiser account name','text','','required maxlength="30"')+event.groups.map(g=>check('group_'+g.id,g.name)).join(''),'Save assignments')+event.staff.map(s=>`<p>${esc(s.name)} · ${esc(groupLabel(s.group))}</p>`).join(''));
- const perms=['score','proxy_vote','confirm_objective','recover','open_vote','close_vote','runoff','open_murder','lock_murder','planning','publish','reveal_role','mission','discussion','shield','objective'];
+ body+=panel('Independent flight controls',`<p>You run the start of the evening through role release. Enable a flight below when its assigned NCO should run missions and round tables independently. They can publish its quiz and first-murder results. Accounts, roles, second-murder approval and whole-event ending/deletion stay with FS Penny. Turning this off removes this additional room-running permission.</p>${event.groups.map(g=>{const enabled=event.room_controls?.find(r=>r.group===g.id)?.enabled;return form('room_control',`<h3>${esc(g.name)}</h3>`+check('enabled','Enable this flight NCO to run its room',enabled),'Save flight controls',{group:g.id});}).join('')}`);
+ const perms=['score','proxy_vote','open_vote','close_vote','runoff','open_murder','lock_murder','planning','publish','reveal_role','mission','discussion'];
  body+=panel('Permitted NCO actions',form('permissions',perms.map(p=>check(p,p.replaceAll('_',' '),event.nco_permissions.includes(p))).join(''),'Save permissions'));
  body+=panel('Event administration',`<p>Open Administration for rehearsal test players, private recovery records, projector links, role resets and event deletion.</p>${btn('page','Open Administration',{page:'admin'})}`);
  return body;
@@ -173,7 +180,7 @@ function captureTimetable(){
  timetableDraft=timetableDraft.map((r,i)=>({...r,time:values['time_'+i],label:values['label_'+i]}));
 }
 function taskGroups(row){return event.groups.filter(g=>(!target||g.id===target)&&currentTask(g,event.timetable)===row.id);}
-function canStartTask(row){return event.host?(row.action!=='release_roles'||roleReadiness(event).canRelease):['mission','discussion','open_murder'].includes(row.action)&&can(row.action);}
+function canStartTask(row){return event.host?(row.action!=='release_roles'||roleReadiness(event).canRelease):['mission','discussion','open_murder'].includes(row.action)?can(row.action):row.action==='activity'&&['break','clearup','parade'].includes(row.id)&&can('room_activity');}
 function taskMenu(row,dirty){
  const groups=event.groups.filter(g=>!target||g.id===target);
  const beginLabel={activity:'Begin '+row.label,release_roles:'Release private envelopes',mission:'Begin mission',discussion:'Start discussion',open_murder:'Open murder opportunity',finish:'Reveal final results'}[row.action];
@@ -184,19 +191,20 @@ function taskMenu(row,dirty){
  if(row.action==='discussion'){
   const round=Number(row.id.match(/^round([1-3])$/)?.[1])||undefined;
   items+=action('publish_ready','Reveal ready round-table outcomes',{kind:'ballot',round},can('publish'));
-  items+=action('open_vote','Open voting',{round})+action('close_vote','Close voting',{round})+action('runoff','Start tied runoff',{round})+action('random_draw','Draw after tied runoff',{round},event.host)+action('reopen_ballot','Reopen empty ballot',{round},event.host)+action('skip_ballot','Skip empty ballot',{round},event.host);
+  items+=action('open_vote','Open voting',{round})+action('close_vote','Close voting',{round})+action('runoff','Start tied runoff',{round})+action('random_draw','Draw after tied runoff',{round})+action('reopen_ballot','Reopen empty ballot',{round})+action('skip_ballot','Skip empty ballot',{round});
   if(event.host&&event.practice)items+=action('test_votes','Generate test votes',{round},true);
  }
  if(row.action==='open_murder'&&Number(row.slot)===0){
   const slot=row.action==='open_murder'?Number(row.slot):1;
   if(row.action!=='open_murder')items+=action('open_murder','Open second murder',{slot});
   items+=action('publish_ready','Reveal ready murder outcomes',{kind:'murder',slot},can('publish'));
+  for(const r of (event.first_murder||[]).filter(r=>groups.some(g=>g.id===r.group)))items+=action('first_publish_quiz',r.published?'Quiz result already published':'Publish quiz winner: '+groupLabel(r.group),{group:r.group,opportunity:r.opportunity},can('publish')&&r.closed&&!r.published);
   items+=action('lock_murder','Lock standard choices')+btn('page','Private objective and verification',{page:'overview'});
  }
  if(['task-send','break','task-close','task-reveal','round2'].includes(row.id))items+=plainTimetableControls(event,row,target,dirty);
  if(['discussion','open_murder'].includes(row.action)||row.id==='break'){
   for(const r of event.reveals.filter(r=>groups.some(g=>g.id===r.group_id)&&(row.action==='discussion'?r.ballot:r.opportunity)&&(!r.published||r.kind==='Banished'&&!r.role_revealed))){
-   items+=btn(r.published?'reveal_role':'publish',(r.published?'Reveal role: ':'Reveal outcome: ')+groupLabel(r.group_id),{group:r.group_id,reveal:r.id},dirty||event.ended||!can(r.published?'reveal_role':'publish')?'disabled':'');
+   items+=btn(r.published?'reveal_role':'publish',(r.published?'Reveal role: ':'Reveal outcome: ')+groupLabel(r.group_id),{group:r.group_id,reveal:r.id},dirty||event.ended||!can(r.published?'reveal_role':'publish')||!outcomeReady(r)?'disabled':'');
   }
  }
  if(row.action==='finish')items=action('finale','Start finale',{},event.host)+items;
@@ -216,7 +224,7 @@ function logScreen(){return panel('Chronological organiser log',`<p>Newest actio
  }).join('')}`);}
 function render(){
  const failedDrafts=noticeError?captureFormDrafts(app):null;
- const completionDrafts=new Map([...captureFormDrafts(app)].filter(([key])=>key.startsWith('plain_submit|')));
+ const completionDrafts=new Map([...captureFormDrafts(app)].filter(([key])=>['plain_submit|','raf_answer|','message|'].some(prefix=>key.startsWith(prefix))));
  const openMenus=[...document.querySelectorAll('.task-menu[open]')].map(el=>el.dataset.taskMenu);
  const focused=document.activeElement;const editing=focused?.closest('form');let editName=focused?.name;const editForm=editing?.dataset.form;
  const editParts=editForm==='timetable'?editName?.match(/^(time|label)_(\d+)$/):null;const editRow=editParts?timetableRenderedRows[Number(editParts[2])]?.id:null;
@@ -235,6 +243,7 @@ function render(){
  if(editName&&editForm)document.querySelector(`form[data-form="${editForm}"] [name="${editName}"]`)?.focus();
  const previews=document.getElementById('evidence-preview');if(previews&&evidenceTask)previews.innerHTML=evidencePhotos.map((p,i)=>`<figure><img src="${esc(p.url)}" alt="Selected task photograph ${i+1}"><figcaption>${p.uploaded?'Upload complete':'Ready to upload'}</figcaption></figure>`).join('');
  if(evidenceViews.length)app.insertAdjacentHTML('beforeend',`<section id="private-evidence-view" class="private-evidence-view" role="dialog" aria-label="Private task photographs" aria-modal="true">${btn('hide_photos','Close private photographs')}${evidenceViews.map((p,i)=>`<img src="${esc(p.url)}" alt="Submitted task photograph ${i+1}">`).join('')}</section>`);
+ if(quizOpen&&event){app.insertAdjacentHTML('beforeend',quizPopup(event,quizStep));restoreFormDrafts(app,completionDrafts);const first=document.querySelector('.raf-quiz-popup input');if(first&&!document.activeElement?.closest('.raf-quiz-popup'))first.focus();}
  renderedFingerprint=fingerprint();
 }
 async function sync(redraw=true){
@@ -242,11 +251,19 @@ async function sync(redraw=true){
  const value=await rpc('tno_snapshot',{eid:requested});
  if(token!==epoch||requested!==eid)return;
  if(requested)eventSnapshot(value);else lobbySnapshot(value);
- if(requested){if(!busy)for(const update of eventUpdates(event,value))notifications.show(update.title,update.message);if(event?.me?.status!==value.me?.status){roleOpen=false;sealPrivate();}event=value;serverOffset=Date.parse(value.server_now)-Date.now();if(target&&!value.groups.some(g=>g.id===target))target='';if(!value.host&&!target)target=value.groups[0]?.id||'';}
+ let firstChanged=false;
+ if(requested){
+  const before=ownFirstRound(event),after=ownFirstRound(value);
+  firstChanged=before?.chat_open!==after?.chat_open||before?.can_choose!==after?.can_choose||before?.closed!==after?.closed;
+  if(after&&!after.closed&&value.me?.role==='Faithful'&&before?.opportunity!==after.opportunity){quizOpen=true;quizStep=after.tie==null?-1:Math.max(0,after.questions.findIndex(q=>!Object.hasOwn(after.answers,q.id)));}
+  if(after?.closed)quizOpen=false;
+  const messages=app.querySelector('.first-murder-private .message-list');if(messages&&roleOpen&&after?.chat_open&&value.me?.role==='Traitor'){const html=firstMessages(value);if(messages.innerHTML!==html){messages.innerHTML=html;messages.scrollTop=messages.scrollHeight;}}
+  if(!busy)for(const update of eventUpdates(event,value))notifications.show(update.title,update.message);if(event?.me?.status!==value.me?.status){roleOpen=false;sealPrivate();}event=value;serverOffset=Date.parse(value.server_now)-Date.now();if(target&&!value.groups.some(g=>g.id===target))target='';if(!value.host&&!target)target=value.groups[0]?.id||'';
+ }
  else{if(!busy&&lobby&&((value.live?.joining&&!lobby.live?.joining)||(value.rehearsals||[]).some(r=>!(lobby.rehearsals||[]).some(old=>old.id===r.id))))notifications.show('Joining is open','You can now join from Event home.');lobby=value;event=null;}
- synced=Date.now();if(redraw&&roleOpen!=='reveal'&&!rolePreview&&fingerprint()!==renderedFingerprint&&Date.now()-interactionAt>1000)render();
+ synced=Date.now();if((redraw||firstChanged)&&roleOpen!=='reveal'&&!rolePreview&&fingerprint()!==renderedFingerprint&&(firstChanged||Date.now()-interactionAt>1000))render();
 }
-const confirmation={plain_send:'Send this saved private task to the active Traitors in the selected flight? Voting and stages stay as they are.',plain_close:'Close completion submissions for this flight? Review and reveal remain separate.',plain_review:'Record this private approval or rejection? No player will be eliminated until the separate public reveal.',roster_activate:'Open registration using the reviewed private register?',publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
+const confirmation={first_choose:'Seal this victim and close your flight quiz? The website awards its shield first. Your decision cannot be changed or replaced.',first_manual:'Record this manual first-murder decision and close the quiz? The reason is logged and shields are applied before resolving it.',first_publish_quiz:'Publish this flight quiz winner and shield result before its murder?',plain_send:'Send this saved private task to the active Traitors in the selected flight? Voting and stages stay as they are.',plain_close:'Close completion submissions for this flight? Review and reveal remain separate.',plain_review:'Record this private approval or rejection? No player will be eliminated until the separate public reveal.',roster_activate:'Open registration using the reviewed private register?',publish_ready:'Reveal the ready outcomes for the selected groups? The displayed results become public.',release_roles:'Release every player’s private role? Roles cannot be reassigned after release.',prepare_roles:'Close joining and prepare roles once?',reset_roles:'Delete only the unreleased roles so they can be prepared again?',publish:'Publish this outcome? Everyone will see the player name. This disclosure cannot be undone.',reveal_role:'Reveal this banished player’s role publicly?',finish:'Release all roles and final winners publicly?',random_draw:'Run an explicit random draw between the tied runoff candidates?',close_vote:'Close voting? Missing votes become abstentions.',lock_murder:'Lock this opportunity and hold the outcome privately?',confirm_objective:'Confirm the physical verification or rejection? A report alone is not proof.',withdraw:'Withdraw this player and keep a logged record?',recover:'Replace this player’s PIN and revoke all their old application sessions?',rotate_board:'Replace the projector link? The old link will stop working.',export:'Download the PRIVATE recovery record, including hidden roles and pending outcomes?'};
 async function perform(cmd,args={}){
  if(['logout','select','back','hide_role'].includes(cmd)){privatePlanDraft=null;sealPrivate();if(cmd==='logout')taskDraftReport=null;}
  if(busy||confirming)return;
@@ -283,6 +300,11 @@ async function perform(cmd,args={}){
   }else if(cmd==='roster_refresh'||cmd==='roster_link'||cmd==='roster_exclude'||cmd==='roster_activate'){
    const action=cmd==='roster_link'?'link':cmd==='roster_exclude'?args.status:cmd==='roster_activate'?'activate':'report';
    rosterReport=await rpc('tno_roster',{action,args});page='register';
+  }else if(cmd==='quiz_open'){quizOpen=true;const round=ownFirstRound(event);quizStep=round?.tie==null?-1:Math.max(0,round.questions.findIndex(q=>!Object.hasOwn(round.answers,q.id)));
+  }else if(cmd==='quiz_hide'){quizOpen=false;
+  }else if(cmd==='quiz_step'){quizStep=Number(args.step);
+  }else if(cmd==='raf_answer'){await submitCommand(cmd,args);quizStep=args.question?quizStep+1:0;notice='Quiz answer saved.';
+  }else if(cmd==='message'){await submitCommand(cmd,args);const input=app.querySelector('form[data-form="message"] textarea');if(input)input.value='';notice='Private message sent.';
   }else if(cmd==='meet_fellows'){fellowsOpen=true;
   }else if(cmd==='hide_fellows'){fellowsOpen=false;
   }else if(cmd==='plain_photos'){
@@ -367,7 +389,8 @@ function beginHold(e){if(!e.target.closest('#role-hold')||!event?.roles_released
 function endHold(){clearTimeout(holdTimer);document.getElementById('role-hold')?.classList.remove('seal-charging');}
 document.addEventListener('pointerdown',e=>{interactionAt=Date.now();beginHold(e);});document.addEventListener('pointerup',endHold);document.addEventListener('pointercancel',endHold);
 document.addEventListener('input',e=>{if(e.target.closest('[data-form="timetable"]')){captureTimetable();document.querySelectorAll('.task-menu [data-cmd]').forEach(b=>{if(b.dataset.cmd!=='page')b.disabled=true;});}});
-document.addEventListener('keydown',e=>{interactionAt=Date.now();if(e.key==='Escape'&&(roleOpen||rolePreview||evidenceViews.length)){roleOpen=false;rolePreview=null;sealPrivate();render();document.getElementById('role-hold')?.focus();}
+document.addEventListener('keydown',e=>{interactionAt=Date.now();if(e.key==='Escape'&&quizOpen){quizOpen=false;render();return;}if(e.key==='Escape'&&(roleOpen||rolePreview||evidenceViews.length)){roleOpen=false;rolePreview=null;sealPrivate();render();document.getElementById('role-hold')?.focus();}
+ if(quizOpen&&e.key==='Tab'){const items=[...document.querySelectorAll('.raf-quiz-popup input,.raf-quiz-popup button:not(:disabled)')];const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}
  if((roleOpen==='reveal'||rolePreview)&&e.key==='Tab'){const buttons=[...document.querySelectorAll('.role-fullscreen button')];const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
 });
 document.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='Enter')&&e.target.id==='role-hold'&&!e.repeat){e.preventDefault();beginHold(e);}});document.addEventListener('keyup',endHold);
